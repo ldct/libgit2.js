@@ -36,6 +36,19 @@
 #include "posix.h"
 #include "buffer.h"
 
+struct addrinfo {
+	struct hostent *ai_hostent;
+	struct servent *ai_servent;
+	struct sockaddr_in ai_addr_in;
+	struct sockaddr *ai_addr;
+	size_t ai_addrlen;
+	int ai_family;
+	int ai_socktype;
+	int ai_protocol;
+	long ai_port;
+	struct addrinfo *ai_next;
+};
+
 #ifdef GIT_WIN32
 static void net_set_error(const char *str)
 {
