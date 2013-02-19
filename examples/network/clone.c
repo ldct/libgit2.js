@@ -4,8 +4,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <pthread.h>
-#include <unistd.h>
+#ifndef _WIN32
+# include <pthread.h>
+# include <unistd.h>
+#endif
 
 /* Shamelessly borrowed from http://stackoverflow.com/questions/3417837/ */
 #ifdef UNUSED
@@ -42,11 +44,12 @@ static void print_progress(const progress_data *pd)
 		   pd->path);
 }
 
-static void fetch_progress(const git_transfer_progress *stats, void *payload)
+static int fetch_progress(const git_transfer_progress *stats, void *payload)
 {
 	progress_data *pd = (progress_data*)payload;
 	pd->fetch_progress = *stats;
 	print_progress(pd);
+	return 0;
 }
 static void checkout_progress(const char *path, size_t cur, size_t tot, void *payload)
 {
@@ -59,6 +62,7 @@ static void checkout_progress(const char *path, size_t cur, size_t tot, void *pa
 
 static int cred_acquire(git_cred **out,
 		const char * UNUSED(url),
+		const char * UNUSED(username_from_url),
 		unsigned int UNUSED(allowed_types),
 		void * UNUSED(payload))
 {
@@ -94,7 +98,7 @@ int do_clone(git_repository *repo, int argc, char **argv)
 	}
 
 	// Set up options
-	checkout_opts.checkout_strategy = GIT_CHECKOUT_SAFE;
+	checkout_opts.checkout_strategy = GIT_CHECKOUT_SAFE_CREATE;
 	checkout_opts.progress_cb = checkout_progress;
 	checkout_opts.progress_payload = &pd;
 	clone_opts.checkout_opts = checkout_opts;

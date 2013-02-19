@@ -13,6 +13,9 @@
 #ifndef min
 # define min(a,b) ((a) < (b) ? (a) : (b))
 #endif
+#ifndef max
+# define max(a,b) ((a) > (b) ? (a) : (b))
+#endif
 
 /*
  * Custom memory allocation wrappers
@@ -48,17 +51,22 @@ GIT_INLINE(char *) git__strndup(const char *str, size_t n)
 	while (length < n && str[length])
 		++length;
 
-	ptr = (char*)malloc(length + 1);
-	if (!ptr) {
-		giterr_set_oom();
-		return NULL;
-	}
+	ptr = (char*)git__malloc(length + 1);
 
 	if (length)
 		memcpy(ptr, str, length);
 
 	ptr[length] = '\0';
 
+	return ptr;
+}
+
+/* NOTE: This doesn't do null or '\0' checking.  Watch those boundaries! */
+GIT_INLINE(char *) git__substrdup(const char *start, size_t n)
+{
+	char *ptr = (char*)git__malloc(n+1);
+	memcpy(ptr, start, n);
+	ptr[n] = '\0';
 	return ptr;
 }
 
@@ -119,18 +127,34 @@ GIT_INLINE(const char *) git__next_line(const char *s)
 	return s;
 }
 
-extern void git__tsort(void **dst, size_t size, int (*cmp)(const void *, const void *));
+typedef int (*git__tsort_cmp)(const void *a, const void *b);
+
+extern void git__tsort(void **dst, size_t size, git__tsort_cmp cmp);
+
+typedef int (*git__tsort_r_cmp)(const void *a, const void *b, void *payload);
+
+extern void git__tsort_r(
+	void **dst, size_t size, git__tsort_r_cmp cmp, void *payload);
+
 
 /**
  * @param position If non-NULL, this will be set to the position where the
  * 		element is or would be inserted if not found.
- * @return pos (>=0) if found or -1 if not found
+ * @return 0 if found; GIT_ENOTFOUND if not found
  */
 extern int git__bsearch(
 	void **array,
 	size_t array_len,
 	const void *key,
-	int (*compare)(const void *, const void *),
+	int (*compare)(const void *key, const void *element),
+	size_t *position);
+
+extern int git__bsearch_r(
+	void **array,
+	size_t array_len,
+	const void *key,
+	int (*compare_r)(const void *key, const void *element, void *payload),
+	void *payload,
 	size_t *position);
 
 extern int git__strcmp_cb(const void *a, const void *b);

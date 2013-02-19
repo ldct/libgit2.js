@@ -417,8 +417,8 @@ void test_checkout_index__can_overcome_name_clashes(void)
 	cl_git_pass(p_mkdir("./testrepo/path1", 0777));
 	cl_git_mkfile("./testrepo/path1/file1", "content\r\n");
 
-	cl_git_pass(git_index_add_from_workdir(index, "path0"));
-	cl_git_pass(git_index_add_from_workdir(index, "path1/file1"));
+	cl_git_pass(git_index_add_bypath(index, "path0"));
+	cl_git_pass(git_index_add_bypath(index, "path1/file1"));
 
 	cl_git_pass(p_unlink("./testrepo/path0"));
 	cl_git_pass(git_futils_rmdir_r(
@@ -497,4 +497,14 @@ void test_checkout_index__can_update_prefixed_files(void)
 	cl_assert(!git_path_exists("testrepo/README.after"));
 	cl_assert(!git_path_exists("testrepo/branch_file"));
 	cl_assert(!git_path_exists("testrepo/branch_file.txt.after"));
+}
+
+void test_checkout_index__can_checkout_a_newly_initialized_repository(void)
+{
+	test_checkout_index__cleanup();
+
+	g_repo = cl_git_sandbox_init("empty_standard_repo");
+	cl_git_remove_placeholders(git_repository_path(g_repo), "dummy-marker.txt");
+
+	cl_git_pass(git_checkout_index(g_repo, NULL, NULL));
 }

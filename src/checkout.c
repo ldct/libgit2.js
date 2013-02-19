@@ -64,6 +64,7 @@ static int checkout_notify(
 {
 	git_diff_file wdfile;
 	const git_diff_file *baseline = NULL, *target = NULL, *workdir = NULL;
+	const char *path = NULL;
 
 	if (!data->opts.notify_cb)
 		return 0;
@@ -81,6 +82,8 @@ static int checkout_notify(
 		wdfile.mode = wditem->mode;
 
 		workdir = &wdfile;
+
+		path = wditem->path;
 	}
 
 	if (delta) {
@@ -101,11 +104,12 @@ static int checkout_notify(
 			baseline = &delta->old_file;
 			break;
 		}
+
+		path = delta->old_file.path;
 	}
 
 	return data->opts.notify_cb(
-		why, delta ? delta->old_file.path : wditem->path,
-		baseline, target, workdir, data->opts.notify_payload);
+		why, path, baseline, target, workdir, data->opts.notify_payload);
 }
 
 static bool checkout_is_workdir_modified(
@@ -224,7 +228,7 @@ static int checkout_action_wd_only(
 	if (!git_pathspec_match_path(
 			pathspec, wd->path,
 			(data->strategy & GIT_CHECKOUT_DISABLE_PATHSPEC_MATCH) != 0,
-			workdir->ignore_case))
+			git_iterator_ignore_case(workdir), NULL))
 		return 0;
 
 	/* check if item is tracked in the index but not in the checkout diff */
@@ -683,7 +687,7 @@ static int blob_content_to_file(
 {
 	int error = -1, nb_filters = 0;
 	mode_t file_mode = opts->file_mode;
-	bool dont_free_filtered = false;
+	bool dont_free_filtered;
 	git_buf unfiltered = GIT_BUF_INIT, filtered = GIT_BUF_INIT;
 	git_vector filters = GIT_VECTOR_INIT;
 
@@ -724,10 +728,8 @@ static int blob_content_to_file(
 	error = buffer_to_file(
 		st, &filtered, path, opts->dir_mode, opts->file_open_flags, file_mode);
 
-	if (!error) {
-		st->st_size = blob->odb_object->raw.len;
+	if (!error)
 		st->st_mode = entry_filemode;
-	}
 
 cleanup:
 	git_filters_free(&filters);
@@ -1130,7 +1132,7 @@ static int checkout_data_init(
 		if ((error = git_config_refresh(cfg)) < 0)
 			goto cleanup;
 
-		if (git_iterator_inner_type(target) == GIT_ITERATOR_INDEX) {
+		if (git_iterator_inner_type(target) == GIT_ITERATOR_TYPE_INDEX) {
 			/* if we are iterating over the index, don't reload */
 			data->index = git_iterator_index_get_index(target);
 			GIT_REFCOUNT_INC(data->index);
@@ -1173,7 +1175,14 @@ static int checkout_data_init(
 
 	if (!data->opts.baseline) {
 		data->opts_free_baseline = true;
-		if ((error = checkout_lookup_head_tree(&data->opts.baseline, repo)) < 0)
+		error = checkout_lookup_head_tree(&data->opts.baseline, repo);
+
+		if (error == GIT_EORPHANEDHEAD) {
+			error = 0;
+			giterr_clear();
+		}
+
+		if (error < 0)
 			goto cleanup;
 	}
 
@@ -1201,6 +1210,7 @@ int git_checkout_iterator(
 	git_diff_options diff_opts = GIT_DIFF_OPTIONS_INIT;
 	uint32_t *actions = NULL;
 	size_t *counts = NULL;
+	git_iterator_flag_t iterflags = 0;
 
 	/* initialize structures and options */
 	error = checkout_data_init(&data, target, opts);
@@ -1221,18 +1231,21 @@ int git_checkout_iterator(
 		diff_opts.pathspec = data.opts.paths;
 
 	/* set up iterators */
+
+	iterflags = git_iterator_ignore_case(target) ?
+		GIT_ITERATOR_IGNORE_CASE : GIT_ITERATOR_DONT_IGNORE_CASE;
+
 	if ((error = git_iterator_reset(target, data.pfx, data.pfx)) < 0 ||
 		(error = git_iterator_for_workdir_range(
-			&workdir, data.repo, data.pfx, data.pfx)) < 0 ||
+			&workdir, data.repo, iterflags, data.pfx, data.pfx)) < 0 ||
 		(error = git_iterator_for_tree_range(
-			&baseline, data.opts.baseline, data.pfx, data.pfx)) < 0)
+			&baseline, data.opts.baseline, iterflags, data.pfx, data.pfx)) < 0)
 		goto cleanup;
 
 	/* Handle case insensitivity for baseline if necessary */
-	if (workdir->ignore_case && !baseline->ignore_case) {
+	if (git_iterator_ignore_case(workdir) != git_iterator_ignore_case(baseline))
 		if ((error = git_iterator_spoolandsort_push(baseline, true)) < 0)
 			goto cleanup;
-	}
 
 	/* Generate baseline-to-target diff which will include an entry for
 	 * every possible update that might need to be made.

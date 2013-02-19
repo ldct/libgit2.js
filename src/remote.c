@@ -59,21 +59,9 @@ static int download_tags_value(git_remote *remote, git_config *cfg)
 
 static int ensure_remote_name_is_valid(const char *name)
 {
-	git_buf buf = GIT_BUF_INIT;
-	git_refspec refspec;
-	int error = -1;
+	int error = 0;
 
-	if (!name || *name == '\0')
-		goto cleanup;
-
-	git_buf_printf(&buf, "refs/heads/test:refs/remotes/%s/test", name);
-	error = git_refspec__parse(&refspec, git_buf_cstr(&buf), true);
-
-	git_buf_free(&buf);
-	git_refspec__free(&refspec);
-
-cleanup:
-	if (error) {
+	if (!git_remote_is_valid_name(name)) {
 		giterr_set(
 			GITERR_CONFIG,
 			"'%s' is not a valid remote name.", name);
@@ -156,6 +144,7 @@ static int ensure_remote_doesnot_exist(git_repository *repo, const char *name)
 int git_remote_create(git_remote **out, git_repository *repo, const char *name, const char *url)
 {
 	git_buf buf = GIT_BUF_INIT;
+	git_remote *remote = NULL;
 	int error;
 
 	if ((error = ensure_remote_name_is_valid(name)) < 0)
@@ -167,19 +156,21 @@ int git_remote_create(git_remote **out, git_repository *repo, const char *name, 
 	if (git_buf_printf(&buf, "+refs/heads/*:refs/remotes/%s/*", name) < 0)
 		return -1;
 
-	if (create_internal(out, repo, name, url, git_buf_cstr(&buf)) < 0)
+	if (create_internal(&remote, repo, name, url, git_buf_cstr(&buf)) < 0)
 		goto on_error;
 
 	git_buf_free(&buf);
 
-	if (git_remote_save(*out) < 0)
+	if (git_remote_save(remote) < 0)
 		goto on_error;
+
+	*out = remote;
 
 	return 0;
 
 on_error:
 	git_buf_free(&buf);
-	git_remote_free(*out);
+	git_remote_free(remote);
 	return -1;
 }
 
@@ -678,9 +669,8 @@ int git_remote_download(
 static int update_tips_callback(git_remote_head *head, void *payload)
 {
 	git_vector *refs = (git_vector *)payload;
-	git_vector_insert(refs, head);
 
-	return 0;
+	return git_vector_insert(refs, head);
 }
 
 static int remote_head_for_fetchspec_src(git_remote_head **out, git_vector *update_heads, const char *fetchspec_src)
@@ -1377,4 +1367,24 @@ int git_remote_update_fetchhead(git_remote *remote)
 void git_remote_set_update_fetchhead(git_remote *remote, int value)
 {
 	remote->update_fetchhead = value;
+}
+
+int git_remote_is_valid_name(
+	const char *remote_name)
+{
+	git_buf buf = GIT_BUF_INIT;
+	git_refspec refspec;
+	int error = -1;
+
+	if (!remote_name || *remote_name == '\0')
+		return 0;
+
+	git_buf_printf(&buf, "refs/heads/test:refs/remotes/%s/test", remote_name);
+	error = git_refspec__parse(&refspec, git_buf_cstr(&buf), true);
+
+	git_buf_free(&buf);
+	git_refspec__free(&refspec);
+
+	giterr_clear();
+	return error == 0;
 }

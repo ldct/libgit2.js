@@ -328,7 +328,7 @@ static int packed_parse_peel(
 	if (git__prefixcmp(tag_ref->name, GIT_REFS_TAGS_DIR) != 0)
 		goto corrupt;
 
-	if (buffer + GIT_OID_HEXSZ >= buffer_end)
+	if (buffer + GIT_OID_HEXSZ > buffer_end)
 		goto corrupt;
 
 	/* Is this a valid object id? */
@@ -339,10 +339,14 @@ static int packed_parse_peel(
 	if (*buffer == '\r')
 		buffer++;
 
-	if (*buffer != '\n')
-		goto corrupt;
+	if (buffer != buffer_end) {
+		if (*buffer == '\n')
+			buffer++;
+		else
+			goto corrupt;
+	}
 
-	*buffer_out = buffer + 1;
+	*buffer_out = buffer;
 	return 0;
 
 corrupt:
@@ -1489,7 +1493,7 @@ int git_reference_foreach(
 	/* list all the packed references first */
 	if (list_flags & GIT_REF_PACKED) {
 		const char *ref_name;
-		void *ref;
+		void *ref = NULL;
 		GIT_UNUSED(ref);
 
 		if (packed_load(repo) < 0)
@@ -1595,6 +1599,7 @@ static int ensure_segment_validity(const char *name)
 {
 	const char *current = name;
 	char prev = '\0';
+	int lock_len = strlen(GIT_FILELOCK_EXTENSION);
 
 	if (*current == '.')
 		return -1; /* Refname starts with "." */
@@ -1614,6 +1619,11 @@ static int ensure_segment_validity(const char *name)
 
 		prev = *current;
 	}
+
+	/* A refname component can not end with ".lock" */
+	if (current - name >= lock_len &&
+		!memcmp(current - lock_len, GIT_FILELOCK_EXTENSION, lock_len))
+			return -1;
 
 	return (int)(current - name);
 }
@@ -1687,6 +1697,10 @@ int git_reference__normalize_name(
 			segments_count++;
 		}
 
+		/* No empty segment is allowed when not normalizing */
+		if (segment_len == 0 && !normalize)
+			goto cleanup;
+		
 		if (current[segment_len] == '\0')
 			break;
 
@@ -1703,10 +1717,6 @@ int git_reference__normalize_name(
 
 	/* A refname can not end with "/" */
 	if (current[segment_len - 1] == '/')
-		goto cleanup;
-
-	/* A refname can not end with ".lock" */
-	if (!git__suffixcmp(name, GIT_FILELOCK_EXTENSION))
 		goto cleanup;
 
 	if ((segments_count == 1 ) && !(flags & GIT_REF_FORMAT_ALLOW_ONELEVEL))
@@ -1905,10 +1915,15 @@ int git_reference_has_log(
 	return result;
 }
 
+int git_reference__is_branch(const char *ref_name)
+{
+	return git__prefixcmp(ref_name, GIT_REFS_HEADS_DIR) == 0;
+}
+
 int git_reference_is_branch(git_reference *ref)
 {
 	assert(ref);
-	return git__prefixcmp(ref->name, GIT_REFS_HEADS_DIR) == 0;
+	return git_reference__is_branch(ref->name);
 }
 
 int git_reference_is_remote(git_reference *ref)

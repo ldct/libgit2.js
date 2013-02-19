@@ -250,8 +250,10 @@ static int update_head_to_remote(git_repository *repo, git_remote *remote)
 
 		goto cleanup;
 	} else {
-		/* TODO: What should we do if nothing has been found?
-		 */
+		retcode = git_repository_set_head_detached(
+			repo,
+			&head_info.remote_head_oid);
+		goto cleanup;
 	}
 
 cleanup:
@@ -353,8 +355,8 @@ static int setup_remotes_and_fetch(
 
 		/* Connect and download everything */
 		if (!git_remote_connect(origin, GIT_DIRECTION_FETCH)) {
-			if (!git_remote_download(origin, options->fetch_progress_cb,
-						options->fetch_progress_payload)) {
+			if (!(retcode = git_remote_download(origin, options->fetch_progress_cb,
+						options->fetch_progress_payload))) {
 				/* Create "origin/foo" branches for all remote branches */
 				if (!git_remote_update_tips(origin)) {
 					/* Point HEAD to the requested branch */
@@ -415,6 +417,7 @@ static void normalize_options(git_clone_options *dst, const git_clone_options *s
 
 	/* Provide defaults for null pointers */
 	if (!dst->remote_name) dst->remote_name = "origin";
+	if (!dst->remote_autotag) dst->remote_autotag = GIT_REMOTE_DOWNLOAD_TAGS_ALL;
 }
 
 int git_clone(

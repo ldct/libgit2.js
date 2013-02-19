@@ -5,7 +5,7 @@ void test_index_rename__single_file(void)
 {
 	git_repository *repo;
 	git_index *index;
-	int position;
+	size_t position;
 	git_oid expected;
 	const git_index_entry *entry;
 
@@ -19,12 +19,12 @@ void test_index_rename__single_file(void)
 	cl_git_mkfile("./rename/lame.name.txt", "new_file\n");
 
 	/* This should add a new blob to the object database in 'd4/fa8600b4f37d7516bef4816ae2c64dbf029e3a' */
-	cl_git_pass(git_index_add_from_workdir(index, "lame.name.txt"));
+	cl_git_pass(git_index_add_bypath(index, "lame.name.txt"));
 	cl_assert(git_index_entrycount(index) == 1);
 
 	cl_git_pass(git_oid_fromstr(&expected, "d4fa8600b4f37d7516bef4816ae2c64dbf029e3a"));
 
-	position = git_index_find(index, "lame.name.txt");
+	cl_assert(!git_index_find(&position, index, "lame.name.txt"));
 
 	entry = git_index_get_byindex(index, position);
 	cl_assert(git_oid_cmp(&expected, &entry->oid) == 0);
@@ -35,10 +35,10 @@ void test_index_rename__single_file(void)
 
 	p_rename("./rename/lame.name.txt", "./rename/fancy.name.txt");
 
-	cl_git_pass(git_index_add_from_workdir(index, "fancy.name.txt"));
+	cl_git_pass(git_index_add_bypath(index, "fancy.name.txt"));
 	cl_assert(git_index_entrycount(index) == 1);
 
-	position = git_index_find(index, "fancy.name.txt");
+	cl_assert(!git_index_find(&position, index, "fancy.name.txt"));
 
 	entry = git_index_get_byindex(index, position);
 	cl_assert(git_oid_cmp(&expected, &entry->oid) == 0);

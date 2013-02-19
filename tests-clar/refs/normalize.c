@@ -14,7 +14,7 @@ static void ensure_refname_normalized(
 
 	cl_git_pass(git_reference_normalize_name(buffer_out, sizeof(buffer_out), input_refname, flags));
 
-	cl_assert_equal_i(0, strcmp(buffer_out, expected_refname));
+	cl_assert_equal_s(expected_refname, buffer_out);
 }
 
 static void ensure_refname_invalid(unsigned int flags, const char *input_refname)
@@ -88,6 +88,8 @@ void test_refs_normalize__symbolic(void)
 		GIT_REF_FORMAT_ALLOW_ONELEVEL, "");
 	ensure_refname_invalid(
 		GIT_REF_FORMAT_ALLOW_ONELEVEL, "heads\foo");
+	ensure_refname_invalid(
+		GIT_REF_FORMAT_ALLOW_ONELEVEL, "/");
 	ensure_refname_invalid(
 		GIT_REF_FORMAT_ALLOW_ONELEVEL, "///");
 

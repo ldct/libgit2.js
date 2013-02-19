@@ -192,7 +192,7 @@ static int update_index_cb(
 	case GIT_DELTA_DELETED:
 		if (!data->include_changed)
 			break;
-		if (git_index_find(data->index, delta->old_file.path) == 0)
+		if (git_index_find(NULL, data->index, delta->old_file.path) == 0)
 			data->error = git_index_remove(
 				data->index, delta->old_file.path, 0);
 		break;
@@ -208,7 +208,7 @@ static int update_index_cb(
 	}
 
 	if (add_path != NULL)
-		data->error = git_index_add_from_workdir(data->index, add_path);
+		data->error = git_index_add_bypath(data->index, add_path);
 
 	return data->error;
 }

@@ -39,7 +39,7 @@ after_success:
 branches:
  only:
    - development
-   
+
 # Notify development list when needed
 notifications:
  irc:

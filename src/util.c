@@ -34,6 +34,37 @@ int git_libgit2_capabilities()
 	;
 }
 
+/* Declarations for tuneable settings */
+extern size_t git_mwindow__window_size;
+extern size_t git_mwindow__mapped_limit;
+
+void git_libgit2_opts(int key, ...)
+{
+	va_list ap;
+
+	va_start(ap, key);
+
+	switch(key) {
+	case GIT_OPT_SET_MWINDOW_SIZE:
+		git_mwindow__window_size = va_arg(ap, size_t);
+		break;
+
+	case GIT_OPT_GET_MWINDOW_SIZE:
+		*(va_arg(ap, size_t *)) = git_mwindow__window_size;
+		break;
+
+	case GIT_OPT_SET_MWINDOW_MAPPED_LIMIT:
+		git_mwindow__mapped_limit = va_arg(ap, size_t);
+		break;
+
+	case GIT_OPT_GET_MWINDOW_MAPPED_LIMIT:
+		*(va_arg(ap, size_t *)) = git_mwindow__mapped_limit;
+		break;
+	}
+
+	va_end(ap);
+}
+
 void git_strarray_free(git_strarray *array)
 {
 	size_t i;
@@ -462,7 +493,7 @@ uint32_t git__hash(const void *key, int len, uint32_t seed)
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
- */ 
+ */
 int git__bsearch(
 	void **array,
 	size_t array_len,
@@ -470,11 +501,11 @@ int git__bsearch(
 	int (*compare)(const void *, const void *),
 	size_t *position)
 {
-	unsigned int lim;
+	size_t lim;
 	int cmp = -1;
 	void **part, **base = array;
 
-	for (lim = (unsigned int)array_len; lim != 0; lim >>= 1) {
+	for (lim = array_len; lim != 0; lim >>= 1) {
 		part = base + (lim >> 1);
 		cmp = (*compare)(key, *part);
 		if (cmp == 0) {
@@ -490,7 +521,38 @@ int git__bsearch(
 	if (position)
 		*position = (base - array);
 
-	return (cmp == 0) ? 0 : -1;
+	return (cmp == 0) ? 0 : GIT_ENOTFOUND;
+}
+
+int git__bsearch_r(
+	void **array,
+	size_t array_len,
+	const void *key,
+	int (*compare_r)(const void *, const void *, void *),
+	void *payload,
+	size_t *position)
+{
+	size_t lim;
+	int cmp = -1;
+	void **part, **base = array;
+
+	for (lim = array_len; lim != 0; lim >>= 1) {
+		part = base + (lim >> 1);
+		cmp = (*compare_r)(key, *part, payload);
+		if (cmp == 0) {
+			base = part;
+			break;
+		}
+		if (cmp > 0) { /* key > p; take right partition */
+			base = part + 1;
+			lim--;
+		} /* else take left partition */
+	}
+
+	if (position)
+		*position = (base - array);
+
+	return (cmp == 0) ? 0 : GIT_ENOTFOUND;
 }
 
 /**

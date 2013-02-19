@@ -14,6 +14,20 @@
 #include "vector.h"
 #include "push.h"
 
+static int push_spec_rref_cmp(const void *a, const void *b)
+{
+	const push_spec *push_spec_a = a, *push_spec_b = b;
+
+	return strcmp(push_spec_a->rref, push_spec_b->rref);
+}
+
+static int push_status_ref_cmp(const void *a, const void *b)
+{
+	const push_status *push_status_a = a, *push_status_b = b;
+
+	return strcmp(push_status_a->ref, push_status_b->ref);
+}
+
 int git_push_new(git_push **out, git_remote *remote)
 {
 	git_push *p;
@@ -26,19 +40,32 @@ int git_push_new(git_push **out, git_remote *remote)
 	p->repo = remote->repo;
 	p->remote = remote;
 	p->report_status = 1;
+	p->pb_parallelism = 1;
 
-	if (git_vector_init(&p->specs, 0, NULL) < 0) {
+	if (git_vector_init(&p->specs, 0, push_spec_rref_cmp) < 0) {
 		git__free(p);
 		return -1;
 	}
 
-	if (git_vector_init(&p->status, 0, NULL) < 0) {
+	if (git_vector_init(&p->status, 0, push_status_ref_cmp) < 0) {
 		git_vector_free(&p->specs);
 		git__free(p);
 		return -1;
 	}
 
 	*out = p;
+	return 0;
+}
+
+int git_push_set_options(git_push *push, const git_push_options *opts)
+{
+	if (!push || !opts)
+		return -1;
+
+	GITERR_CHECK_VERSION(opts, GIT_PUSH_OPTIONS_VERSION, "git_push_options");
+
+	push->pb_parallelism = opts->pb_parallelism;
+
 	return 0;
 }
 
@@ -159,6 +186,60 @@ int git_push_add_refspec(git_push *push, const char *refspec)
 		return -1;
 
 	return 0;
+}
+
+int git_push_update_tips(git_push *push)
+{
+	git_refspec *fetch_spec = &push->remote->fetch;
+	git_buf remote_ref_name = GIT_BUF_INIT;
+	size_t i, j;
+	push_spec *push_spec;
+	git_reference *remote_ref;
+	push_status *status;
+	int error = 0;
+
+	git_vector_foreach(&push->status, i, status) {
+		/* If this ref update was successful (ok, not ng), it will have an empty message */
+		if (status->msg)
+			continue;
+
+		/* Find the corresponding remote ref */
+		if (!git_refspec_src_matches(fetch_spec, status->ref))
+			continue;
+
+		if ((error = git_refspec_transform_r(&remote_ref_name, fetch_spec, status->ref)) < 0)
+			goto on_error;
+
+		/* Find matching  push ref spec */
+		git_vector_foreach(&push->specs, j, push_spec) {
+			if (!strcmp(push_spec->rref, status->ref))
+				break;
+		}
+
+		/* Could not find the corresponding push ref spec for this push update */
+		if (j == push->specs.length)
+			continue;
+
+		/* Update the remote ref */
+		if (git_oid_iszero(&push_spec->loid)) {
+			error = git_reference_lookup(&remote_ref, push->remote->repo, git_buf_cstr(&remote_ref_name));
+
+			if (!error) {
+				if ((error = git_reference_delete(remote_ref)) < 0)
+					goto on_error;
+			} else if (error == GIT_ENOTFOUND)
+				giterr_clear();
+			else
+				goto on_error;
+		} else if ((error = git_reference_create(NULL, push->remote->repo, git_buf_cstr(&remote_ref_name), &push_spec->loid, 1)) < 0)
+			goto on_error;
+	}
+
+	error = 0;
+
+on_error:
+	git_buf_free(&remote_ref_name);
+	return error;
 }
 
 static int revwalk(git_vector *commits, git_push *push)
@@ -369,14 +450,24 @@ static int do_push(git_push *push)
 	int error;
 	git_transport *transport = push->remote->transport;
 
+	if (!transport->push) {
+		giterr_set(GITERR_NET, "Remote transport doesn't support push");
+		error = -1;
+		goto on_error;
+	}
+
 	/*
 	 * A pack-file MUST be sent if either create or update command
 	 * is used, even if the server already has all the necessary
 	 * objects.  In this case the client MUST send an empty pack-file.
 	 */
 
-	if ((error = git_packbuilder_new(&push->pb, push->repo)) < 0 ||
-		(error = calculate_work(push)) < 0 ||
+	if ((error = git_packbuilder_new(&push->pb, push->repo)) < 0)
+		goto on_error;
+
+	git_packbuilder_set_threads(push->pb, push->pb_parallelism);
+
+	if ((error = calculate_work(push)) < 0 ||
 		(error = queue_objects(push)) < 0 ||
 		(error = transport->push(transport, push)) < 0)
 		goto on_error;

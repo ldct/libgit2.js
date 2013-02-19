@@ -86,14 +86,18 @@ int cl_setenv(const char *name, const char *value)
 
 	git__utf8_to_16(name_utf16, GIT_WIN_PATH, name);
 
-	if (value != NULL)
+	if (value) {
 		git__utf8_to_16(value_utf16, GIT_WIN_PATH, value);
+		cl_assert(SetEnvironmentVariableW(name_utf16, value_utf16));
+	} else {
+		/* Windows XP returns 0 (failed) when passing NULL for lpValue when
+		 * lpName does not exist in the environment block. This behavior
+		 * seems to have changed in later versions. Don't check return value
+		 * of SetEnvironmentVariable when passing NULL for lpValue.
+		 */
+		SetEnvironmentVariableW(name_utf16, NULL);
+	}
 
-	/* Windows XP returns 0 (failed) when passing NULL for lpValue when lpName
-	 * does not exist in the environment block. This behavior seems to have changed
-	 * in later versions. Don't fail when SetEnvironmentVariable fails, if we passed
-	 * NULL for lpValue. */
-	cl_assert(SetEnvironmentVariableW(name_utf16, value ? value_utf16 : NULL) || !value);
 	return 0;
 }
 
@@ -238,7 +242,7 @@ const char* cl_git_path_url(const char *path)
 	cl_git_pass(git_path_prettify_dir(&path_buf, path, NULL));
 	cl_git_pass(git_buf_puts(&url_buf, "file://"));
 
-#ifdef _MSC_VER
+#ifdef GIT_WIN32
 	/*
 	 * A FILE uri matches the following format: file://[host]/path
 	 * where "host" can be empty and "path" is an absolute path to the resource.

@@ -263,36 +263,36 @@ void test_repo_init__reinit_doesnot_overwrite_ignorecase(void)
 
 void test_repo_init__reinit_overwrites_filemode(void)
 {
-    git_config *config;
-    int expected, current_value;
+	git_config *config;
+	int expected, current_value;
 
 #ifdef GIT_WIN32
-    expected = false;
+	expected = false;
 #else
-    expected = true;
+	expected = true;
 #endif
 
-    /* Init a new repo */
-    cl_set_cleanup(&cleanup_repository, "overwrite.git");
-    cl_git_pass(git_repository_init(&_repo, "overwrite.git", 1));
+	/* Init a new repo */
+	cl_set_cleanup(&cleanup_repository, "overwrite.git");
+	cl_git_pass(git_repository_init(&_repo, "overwrite.git", 1));
 
 
-    /* Change the "core.filemode" config value to something unlikely */
-    git_repository_config(&config, _repo);
-    git_config_set_bool(config, "core.filemode", !expected);
-    git_config_free(config);
-    git_repository_free(_repo);
-    _repo = NULL;
+	/* Change the "core.filemode" config value to something unlikely */
+	git_repository_config(&config, _repo);
+	git_config_set_bool(config, "core.filemode", !expected);
+	git_config_free(config);
+	git_repository_free(_repo);
+	_repo = NULL;
 
-    /* Reinit the repository */
-    cl_git_pass(git_repository_init(&_repo, "overwrite.git", 1));
-    git_repository_config(&config, _repo);
+	/* Reinit the repository */
+	cl_git_pass(git_repository_init(&_repo, "overwrite.git", 1));
+	git_repository_config(&config, _repo);
 
-    /* Ensure the "core.filemode" config value has been reset */
-    cl_git_pass(git_config_get_bool(&current_value, config, "core.filemode"));
-    cl_assert_equal_i(expected, current_value);
+	/* Ensure the "core.filemode" config value has been reset */
+	cl_git_pass(git_config_get_bool(&current_value, config, "core.filemode"));
+	cl_assert_equal_i(expected, current_value);
 
-    git_config_free(config);
+	git_config_free(config);
 }
 
 void test_repo_init__sets_logAllRefUpdates_according_to_type_of_repository(void)
@@ -365,15 +365,26 @@ void test_repo_init__extended_1(void)
 
 void test_repo_init__extended_with_template(void)
 {
+	git_buf expected = GIT_BUF_INIT;
+	git_buf actual = GIT_BUF_INIT;
+
 	git_repository_init_options opts = GIT_REPOSITORY_INIT_OPTIONS_INIT;
 
-	opts.flags = GIT_REPOSITORY_INIT_MKPATH | GIT_REPOSITORY_INIT_BARE;
+	opts.flags = GIT_REPOSITORY_INIT_MKPATH | GIT_REPOSITORY_INIT_BARE | GIT_REPOSITORY_INIT_EXTERNAL_TEMPLATE;
 	opts.template_path = cl_fixture("template");
 
 	cl_git_pass(git_repository_init_ext(&_repo, "templated.git", &opts));
 
 	cl_assert(git_repository_is_bare(_repo));
 	cl_assert(!git__suffixcmp(git_repository_path(_repo), "/templated.git/"));
+
+	cl_assert(git_futils_readbuffer(&expected,cl_fixture("template/description")) == GIT_OK);
+	cl_assert(git_futils_readbuffer(&actual,"templated.git/description") == GIT_OK);
+
+	cl_assert(!git_buf_cmp(&expected,&actual));
+
+	git_buf_free(&expected);
+	git_buf_free(&actual);
 
 	cleanup_repository("templated.git");
 }

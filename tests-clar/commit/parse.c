@@ -121,6 +121,14 @@ passing_signature_test_case passing_signature_cases[] = {
 	{"author A U Thor <author@example.com> and others 1234567890 -0700\n", "author ", "A U Thor", "author@example.com", 1234567890, -420},
 	{"author A U Thor <author@example.com> and others 1234567890\n", "author ", "A U Thor", "author@example.com", 1234567890, 0},
 	{"author A U Thor> <author@example.com> and others 1234567890\n", "author ", "A U Thor>", "author@example.com", 1234567890, 0},
+	/* a variety of dates */
+	{"author Vicent Marti <tanoku@gmail.com> 0 \n", "author ", "Vicent Marti", "tanoku@gmail.com", 0, 0},
+	{"author Vicent Marti <tanoku@gmail.com> 1234567890 \n", "author ", "Vicent Marti", "tanoku@gmail.com", 1234567890, 0},
+	{"author Vicent Marti <tanoku@gmail.com> 2147483647 \n", "author ", "Vicent Marti", "tanoku@gmail.com", 0x7fffffff, 0},
+	{"author Vicent Marti <tanoku@gmail.com> 4294967295 \n", "author ", "Vicent Marti", "tanoku@gmail.com", 0xffffffff, 0},
+	{"author Vicent Marti <tanoku@gmail.com> 4294967296 \n", "author ", "Vicent Marti", "tanoku@gmail.com", 4294967296, 0},
+	{"author Vicent Marti <tanoku@gmail.com> 8589934592 \n", "author ", "Vicent Marti", "tanoku@gmail.com", 8589934592, 0},
+
    {NULL,NULL,NULL,NULL,0,0}
 };
 
@@ -151,8 +159,8 @@ void test_commit_parse__signature(void)
       size_t len = strlen(passcase->string);
       struct git_signature person = {0};
       cl_git_pass(git_signature__parse(&person, &str, str + len, passcase->header, '\n'));
-      cl_assert(strcmp(passcase->name, person.name) == 0);
-      cl_assert(strcmp(passcase->email, person.email) == 0);
+      cl_assert_equal_s(passcase->name, person.name);
+      cl_assert_equal_s(passcase->email, person.email);
       cl_assert(passcase->time == person.when.time);
       cl_assert(passcase->offset == person.when.offset);
       git__free(person.name); git__free(person.email);
@@ -236,6 +244,30 @@ author Vicent Marti <tanoku@gmail.com> 1273848544 +0200\n\
 committer Vicent Marti <tanoku@gmail.com> 1273848544 +0200\n\
 \n\
 a simple commit which works\n",
+/* simple commit with GPG signature */
+"tree 6b79e22d69bf46e289df0345a14ca059dfc9bdf6\n\
+parent 34734e478d6cf50c27c9d69026d93974d052c454\n\
+author Ben Burkert <ben@benburkert.com> 1358451456 -0800\n\
+committer Ben Burkert <ben@benburkert.com> 1358451456 -0800\n\
+gpgsig -----BEGIN PGP SIGNATURE-----\n\
+ Version: GnuPG v1.4.12 (Darwin)\n\
+ \n\
+ iQIcBAABAgAGBQJQ+FMIAAoJEH+LfPdZDSs1e3EQAJMjhqjWF+WkGLHju7pTw2al\n\
+ o6IoMAhv0Z/LHlWhzBd9e7JeCnanRt12bAU7yvYp9+Z+z+dbwqLwDoFp8LVuigl8\n\
+ JGLcnwiUW3rSvhjdCp9irdb4+bhKUnKUzSdsR2CK4/hC0N2i/HOvMYX+BRsvqweq\n\
+ AsAkA6dAWh+gAfedrBUkCTGhlNYoetjdakWqlGL1TiKAefEZrtA1TpPkGn92vbLq\n\
+ SphFRUY9hVn1ZBWrT3hEpvAIcZag3rTOiRVT1X1flj8B2vGCEr3RrcwOIZikpdaW\n\
+ who/X3xh/DGbI2RbuxmmJpxxP/8dsVchRJJzBwG+yhwU/iN3MlV2c5D69tls/Dok\n\
+ 6VbyU4lm/ae0y3yR83D9dUlkycOnmmlBAHKIZ9qUts9X7mWJf0+yy2QxJVpjaTGG\n\
+ cmnQKKPeNIhGJk2ENnnnzjEve7L7YJQF6itbx5VCOcsGh3Ocb3YR7DMdWjt7f8pu\n\
+ c6j+q1rP7EpE2afUN/geSlp5i3x8aXZPDj67jImbVCE/Q1X9voCtyzGJH7MXR0N9\n\
+ ZpRF8yzveRfMH8bwAJjSOGAFF5XkcR/RNY95o+J+QcgBLdX48h+ZdNmUf6jqlu3J\n\
+ 7KmTXXQcOVpN6dD3CmRFsbjq+x6RHwa8u1iGn+oIkX908r97ckfB/kHKH7ZdXIJc\n\
+ cpxtDQQMGYFpXK/71stq\n\
+ =ozeK\n\
+ -----END PGP SIGNATURE-----\n\
+\n\
+a simple commit which works\n",
 };
 
 void test_commit_parse__entire_commit(void)
@@ -251,10 +283,8 @@ void test_commit_parse__entire_commit(void)
 		commit->object.repo = g_repo;
 
 		cl_git_fail(git_commit__parse_buffer(
-                     commit,
-                     failing_commit_cases[i],
-                     strlen(failing_commit_cases[i]))
-         );
+			commit, failing_commit_cases[i], strlen(failing_commit_cases[i]))
+		);
 
 		git_commit__free(commit);
 	}
@@ -272,17 +302,11 @@ void test_commit_parse__entire_commit(void)
                      strlen(passing_commit_cases[i]))
          );
 
-		git_commit__free(commit);
-
-		commit = (git_commit*)git__malloc(sizeof(git_commit));
-		memset(commit, 0x0, sizeof(git_commit));
-		commit->object.repo = g_repo;
-
-		cl_git_pass(git_commit__parse_buffer(
-                     commit,
-                     passing_commit_cases[i],
-                     strlen(passing_commit_cases[i]))
-         );
+		if (!i)
+			cl_assert_equal_s("\n", git_commit_message(commit));
+		else
+			cl_assert(git__prefixcmp(
+				git_commit_message(commit), "a simple commit which works") == 0);
 
 		git_commit__free(commit);
 	}
@@ -323,10 +347,10 @@ void test_commit_parse__details0(void) {
 		commit_time = git_commit_time(commit);
 		parents = git_commit_parentcount(commit);
 
-		cl_assert(strcmp(author->name, "Scott Chacon") == 0);
-		cl_assert(strcmp(author->email, "schacon@gmail.com") == 0);
-		cl_assert(strcmp(committer->name, "Scott Chacon") == 0);
-		cl_assert(strcmp(committer->email, "schacon@gmail.com") == 0);
+		cl_assert_equal_s("Scott Chacon", author->name);
+		cl_assert_equal_s("schacon@gmail.com", author->email);
+		cl_assert_equal_s("Scott Chacon", committer->name);
+		cl_assert_equal_s("schacon@gmail.com", committer->email);
 		cl_assert(message != NULL);
 		cl_assert(strchr(message, '\n') != NULL);
 		cl_assert(commit_time > 0);

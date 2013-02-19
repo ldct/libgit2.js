@@ -19,6 +19,26 @@
 GIT_BEGIN_DECL
 
 /**
+ * Controls the behavior of a git_push object.
+ */
+typedef struct {
+	unsigned int version;
+
+	/**
+	 * If the transport being used to push to the remote requires the creation
+	 * of a pack file, this controls the number of worker threads used by
+	 * the packbuilder when creating that pack file to be sent to the remote.
+	 *
+	 * If set to 0, the packbuilder will auto-detect the number of threads
+	 * to create. The default value is 1.
+	 */
+	unsigned int pb_parallelism;
+} git_push_options;
+
+#define GIT_PUSH_OPTIONS_VERSION 1
+#define GIT_PUSH_OPTIONS_INIT { GIT_PUSH_OPTIONS_VERSION }
+
+/**
  * Create a new push object
  *
  * @param out New push object
@@ -27,6 +47,18 @@ GIT_BEGIN_DECL
  * @return 0 or an error code
  */
 GIT_EXTERN(int) git_push_new(git_push **out, git_remote *remote);
+
+/**
+ * Set options on a push object
+ *
+ * @param push The push object
+ * @param opts The options to set on the push object
+ *
+ * @return 0 or an error code
+ */
+GIT_EXTERN(int) git_push_set_options(
+	git_push *push,
+	const git_push_options *opts);
 
 /**
  * Add a refspec to be pushed
@@ -39,7 +71,21 @@ GIT_EXTERN(int) git_push_new(git_push **out, git_remote *remote);
 GIT_EXTERN(int) git_push_add_refspec(git_push *push, const char *refspec);
 
 /**
+ * Update remote tips after a push
+ *
+ * @param push The push object
+ *
+ * @return 0 or an error code
+ */
+GIT_EXTERN(int) git_push_update_tips(git_push *push);
+
+/**
  * Actually push all given refspecs
+ *
+ * Note: To check if the push was successful (i.e. all remote references
+ * have been updated as requested), you need to call both
+ * `git_push_unpack_ok` and `git_push_status_foreach`. The remote
+ * repository might have refused to update some or all of the references.
  *
  * @param push The push object
  *
@@ -58,6 +104,11 @@ GIT_EXTERN(int) git_push_unpack_ok(git_push *push);
 
 /**
  * Call callback `cb' on each status
+ *
+ * For each of the updated references, we receive a status report in the
+ * form of `ok refs/heads/master` or `ng refs/heads/master <msg>`.
+ * `msg != NULL` means the reference has not been updated for the given
+ * reason.
  *
  * @param push The push object
  * @param cb The callback to call on each object

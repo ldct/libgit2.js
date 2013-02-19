@@ -45,10 +45,12 @@ typedef struct git_cred_userpass_plaintext {
 
 /**
  * Creates a new plain-text username and password credential object.
+ * The supplied credential parameter will be internally duplicated.
  *
  * @param out The newly created credential object.
  * @param username The username of the credential.
  * @param password The password of the credential.
+ * @return 0 for success or an error code for failure
  */
 GIT_EXTERN(int) git_cred_userpass_plaintext_new(
 	git_cred **out,
@@ -60,12 +62,16 @@ GIT_EXTERN(int) git_cred_userpass_plaintext_new(
  *
  * @param cred The newly created credential object.
  * @param url The resource for which we are demanding a credential.
+ * @param username_from_url The username that was embedded in a "user@host"
+ *                          remote url, or NULL if not included.
  * @param allowed_types A bitmask stating which cred types are OK to return.
  * @param payload The payload provided when specifying this callback.
+ * @return 0 for success or an error code for failure
  */
 typedef int (*git_cred_acquire_cb)(
 	git_cred **cred,
 	const char *url,
+	const char *username_from_url,
 	unsigned int allowed_types,
 	void *payload);
 
@@ -294,7 +300,7 @@ typedef struct git_smart_subtransport_definition {
 
 	/* True if the protocol is stateless; false otherwise. For example,
 	 * http:// is stateless, but git:// is not. */
-	unsigned rpc : 1;
+	unsigned rpc;
 } git_smart_subtransport_definition;
 
 /* Smart transport subtransports that come with libgit2 */

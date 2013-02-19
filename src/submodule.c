@@ -157,7 +157,7 @@ int git_submodule_foreach(
 		 * and path are not the same.
 		 */
 		if (sm->refcount > 1) {
-			if (git_vector_bsearch(&seen, sm) != GIT_ENOTFOUND)
+			if (git_vector_bsearch(NULL, &seen, sm) != GIT_ENOTFOUND)
 				continue;
 			if ((error = git_vector_insert(&seen, sm)) < 0)
 				break;
@@ -332,7 +332,7 @@ int git_submodule_add_finalize(git_submodule *sm)
 	assert(sm);
 
 	if ((error = git_repository_index__weakptr(&index, sm->owner)) < 0 ||
-		(error = git_index_add_from_workdir(index, GIT_MODULES_FILE)) < 0)
+		(error = git_index_add_bypath(index, GIT_MODULES_FILE)) < 0)
 		return error;
 
 	return git_submodule_add_to_index(sm, true);
@@ -716,7 +716,8 @@ int git_submodule_reload(git_submodule *submodule)
 {
 	git_repository *repo;
 	git_index *index;
-	int pos, error;
+	int error;
+	size_t pos;
 	git_tree *head;
 	git_config_backend *mods;
 
@@ -732,8 +733,7 @@ int git_submodule_reload(git_submodule *submodule)
 		~(GIT_SUBMODULE_STATUS_IN_INDEX |
 		  GIT_SUBMODULE_STATUS__INDEX_OID_VALID);
 
-	pos = git_index_find(index, submodule->path);
-	if (pos >= 0) {
+	if (!git_index_find(&pos, index, submodule->path)) {
 		const git_index_entry *entry = git_index_get_byindex(index, pos);
 
 		if (S_ISGITLINK(entry->mode)) {
@@ -1130,10 +1130,12 @@ static int load_submodule_config_from_index(
 	git_repository *repo, git_oid *gitmodules_oid)
 {
 	int error;
+	git_index *index;
 	git_iterator *i;
 	const git_index_entry *entry;
 
-	if ((error = git_iterator_for_repo_index(&i, repo)) < 0)
+	if ((error = git_repository_index__weakptr(&index, repo)) < 0 ||
+		(error = git_iterator_for_index(&i, index)) < 0)
 		return error;
 
 	error = git_iterator_current(i, &entry);

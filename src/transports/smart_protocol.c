@@ -231,10 +231,10 @@ int git_smart__negotiate_fetch(git_transport *transport, git_repository *repo, c
 	git_oid oid;
 
 	/* No own logic, do our thing */
-	if (git_pkt_buffer_wants(refs, count, &t->caps, &data) < 0)
-		return -1;
+	if ((error = git_pkt_buffer_wants(refs, count, &t->caps, &data)) < 0)
+		return error;
 
-	if (fetch_setup_walk(&walk, repo) < 0)
+	if ((error = fetch_setup_walk(&walk, repo)) < 0)
 		goto on_error;
 	/*
 	 * We don't support any kind of ACK extensions, so the negotiation
@@ -242,7 +242,16 @@ int git_smart__negotiate_fetch(git_transport *transport, git_repository *repo, c
 	 * every once in a while.
 	 */
 	i = 0;
-	while ((error = git_revwalk_next(&oid, walk)) == 0) {
+	while (true) {
+		error = git_revwalk_next(&oid, walk);
+
+		if (error < 0) {
+			if (GIT_ITEROVER == error)
+				break;
+
+			goto on_error;
+		}
+
 		git_pkt_buffer_have(&oid, &data);
 		i++;
 		if (i % 20 == 0) {
@@ -253,15 +262,17 @@ int git_smart__negotiate_fetch(git_transport *transport, git_repository *repo, c
 			}
 
 			git_pkt_buffer_flush(&data);
-			if (git_buf_oom(&data))
+			if (git_buf_oom(&data)) {
+				error = -1;
 				goto on_error;
+			}
 
-			if (git_smart__negotiation_step(&t->parent, data.ptr, data.size) < 0)
+			if ((error = git_smart__negotiation_step(&t->parent, data.ptr, data.size)) < 0)
 				goto on_error;
 
 			git_buf_clear(&data);
 			if (t->caps.multi_ack) {
-				if (store_common(t) < 0)
+				if ((error = store_common(t)) < 0)
 					goto on_error;
 			} else {
 				pkt_type = recv_pkt(NULL, buf);
@@ -270,8 +281,13 @@ int git_smart__negotiate_fetch(git_transport *transport, git_repository *repo, c
 					break;
 				} else if (pkt_type == GIT_PKT_NAK) {
 					continue;
+				} else if (pkt_type < 0) {
+					/* recv_pkt returned an error */
+					error = pkt_type;
+					goto on_error;
 				} else {
 					giterr_set(GITERR_NET, "Unexpected pkt type");
+					error = -1;
 					goto on_error;
 				}
 			}
@@ -284,44 +300,49 @@ int git_smart__negotiate_fetch(git_transport *transport, git_repository *repo, c
 			git_pkt_ack *pkt;
 			unsigned int i;
 
-			if (git_pkt_buffer_wants(refs, count, &t->caps, &data) < 0)
+			if ((error = git_pkt_buffer_wants(refs, count, &t->caps, &data)) < 0)
 				goto on_error;
 
 			git_vector_foreach(&t->common, i, pkt) {
-				git_pkt_buffer_have(&pkt->oid, &data);
+				if ((error = git_pkt_buffer_have(&pkt->oid, &data)) < 0)
+					goto on_error;
 			}
 
-			if (git_buf_oom(&data))
+			if (git_buf_oom(&data)) {
+				error = -1;
 				goto on_error;
+			}
 		}
 	}
-
-	if (error < 0 && error != GIT_ITEROVER)
-		goto on_error;
 
 	/* Tell the other end that we're done negotiating */
 	if (t->rpc && t->common.length > 0) {
 		git_pkt_ack *pkt;
 		unsigned int i;
 
-		if (git_pkt_buffer_wants(refs, count, &t->caps, &data) < 0)
+		if ((error = git_pkt_buffer_wants(refs, count, &t->caps, &data)) < 0)
 			goto on_error;
 
 		git_vector_foreach(&t->common, i, pkt) {
-			git_pkt_buffer_have(&pkt->oid, &data);
+			if ((error = git_pkt_buffer_have(&pkt->oid, &data)) < 0)
+				goto on_error;
 		}
 
-		if (git_buf_oom(&data))
+		if (git_buf_oom(&data)) {
+			error = -1;
 			goto on_error;
+		}
 	}
 
-	git_pkt_buffer_done(&data);
+	if ((error = git_pkt_buffer_done(&data)) < 0)
+		goto on_error;
+
 	if (t->cancelled.val) {
 		giterr_set(GITERR_NET, "The fetch was cancelled by the user");
 		error = GIT_EUSER;
 		goto on_error;
 	}
-	if (git_smart__negotiation_step(&t->parent, data.ptr, data.size) < 0)
+	if ((error = git_smart__negotiation_step(&t->parent, data.ptr, data.size)) < 0)
 		goto on_error;
 
 	git_buf_free(&data);
@@ -330,15 +351,18 @@ int git_smart__negotiate_fetch(git_transport *transport, git_repository *repo, c
 	/* Now let's eat up whatever the server gives us */
 	if (!t->caps.multi_ack) {
 		pkt_type = recv_pkt(NULL, buf);
-		if (pkt_type != GIT_PKT_ACK && pkt_type != GIT_PKT_NAK) {
+
+		if (pkt_type < 0) {
+			return pkt_type;
+		} else if (pkt_type != GIT_PKT_ACK && pkt_type != GIT_PKT_NAK) {
 			giterr_set(GITERR_NET, "Unexpected pkt type");
 			return -1;
 		}
 	} else {
 		git_pkt_ack *pkt;
 		do {
-			if (recv_pkt((git_pkt **)&pkt, buf) < 0)
-				return -1;
+			if ((error = recv_pkt((git_pkt **)&pkt, buf)) < 0)
+				return error;
 
 			if (pkt->type == GIT_PKT_NAK ||
 			    (pkt->type == GIT_PKT_ACK && pkt->status != GIT_ACK_CONTINUE)) {
@@ -469,10 +493,11 @@ int git_smart__download_pack(
 			git__free(pkt);
 		} else if (pkt->type == GIT_PKT_DATA) {
 			git_pkt_data *p = (git_pkt_data *) pkt;
-			if (writepack->add(writepack, p->data, p->len, stats) < 0)
-				goto on_error;
+			error = writepack->add(writepack, p->data, p->len, stats);
 
 			git__free(pkt);
+			if (error < 0)
+				goto on_error;
 		} else if (pkt->type == GIT_PKT_FLUSH) {
 			/* A flush indicates the end of the packfile */
 			git__free(pkt);
@@ -517,7 +542,7 @@ static int gen_pktline(git_buf *buf, git_push *push)
 		git_oid_fmt(old_id, &spec->roid);
 		git_oid_fmt(new_id, &spec->loid);
 
-		git_buf_printf(buf, "%04zx%s %s %s", len, old_id, new_id, spec->rref);
+		git_buf_printf(buf, "%04"PRIxZ"%s %s %s", len, old_id, new_id, spec->rref);
 
 		if (i == 0) {
 			git_buf_putc(buf, '\0');
@@ -604,6 +629,110 @@ static int parse_report(gitno_buffer *buf, git_push *push)
 	}
 }
 
+static int add_ref_from_push_spec(git_vector *refs, push_spec *push_spec)
+{
+	git_pkt_ref *added = git__calloc(1, sizeof(git_pkt_ref));
+	GITERR_CHECK_ALLOC(added);
+
+	added->type = GIT_PKT_REF;
+	git_oid_cpy(&added->head.oid, &push_spec->loid);
+	added->head.name = git__strdup(push_spec->rref);
+
+	if (!added->head.name ||
+		git_vector_insert(refs, added) < 0) {
+		git_pkt_free((git_pkt *)added);
+		return -1;
+	}
+
+	return 0;
+}
+
+static int update_refs_from_report(
+	git_vector *refs,
+	git_vector *push_specs,
+	git_vector *push_report)
+{
+	git_pkt_ref *ref;
+	push_spec *push_spec;
+	push_status *push_status;
+	size_t i, j, refs_len;
+	int cmp;
+
+	/* For each push spec we sent to the server, we should have
+	 * gotten back a status packet in the push report */
+	if (push_specs->length != push_report->length) {
+		giterr_set(GITERR_NET, "report-status: protocol error");
+		return -1;
+	}
+
+	/* We require that push_specs be sorted with push_spec_rref_cmp,
+	 * and that push_report be sorted with push_status_ref_cmp */
+	git_vector_sort(push_specs);
+	git_vector_sort(push_report);
+
+	git_vector_foreach(push_specs, i, push_spec) {
+		push_status = git_vector_get(push_report, i);
+
+		/* For each push spec we sent to the server, we should have
+		 * gotten back a status packet in the push report which matches */
+		if (strcmp(push_spec->rref, push_status->ref)) {
+			giterr_set(GITERR_NET, "report-status: protocol error");
+			return -1;
+		}
+	}
+
+	/* We require that refs be sorted with ref_name_cmp */
+	git_vector_sort(refs);
+	i = j = 0;
+	refs_len = refs->length;
+
+	/* Merge join push_specs with refs */
+	while (i < push_specs->length && j < refs_len) {
+		push_spec = git_vector_get(push_specs, i);
+		push_status = git_vector_get(push_report, i);
+		ref = git_vector_get(refs, j);
+
+		cmp = strcmp(push_spec->rref, ref->head.name);
+
+		/* Iterate appropriately */
+		if (cmp <= 0) i++;
+		if (cmp >= 0) j++;
+
+		/* Add case */
+		if (cmp < 0 &&
+			!push_status->msg &&
+			add_ref_from_push_spec(refs, push_spec) < 0)
+			return -1;
+
+		/* Update case, delete case */
+		if (cmp == 0 &&
+			!push_status->msg)
+			git_oid_cpy(&ref->head.oid, &push_spec->loid);
+	}
+
+	for (; i < push_specs->length; i++) {
+		push_spec = git_vector_get(push_specs, i);
+		push_status = git_vector_get(push_report, i);
+
+		/* Add case */
+		if (!push_status->msg &&
+			add_ref_from_push_spec(refs, push_spec) < 0)
+			return -1;
+	}
+
+	/* Remove any refs which we updated to have a zero OID. */
+	git_vector_rforeach(refs, i, ref) {
+		if (git_oid_iszero(&ref->head.oid)) {
+			git_vector_remove(refs, i);
+			git_pkt_free((git_pkt *)ref);
+		}
+	}
+
+	git_vector_sort(refs);
+
+	return 0;
+}
+
 static int stream_thunk(void *buf, size_t size, void *data)
 {
 	git_smart_subtransport_stream *s = (git_smart_subtransport_stream *)data;
@@ -616,7 +745,6 @@ int git_smart__push(git_transport *transport, git_push *push)
 	transport_smart *t = (transport_smart *)transport;
 	git_smart_subtransport_stream *s;
 	git_buf pktline = GIT_BUF_INIT;
-	char *url = NULL;
 	int error = -1;
 
 #ifdef PUSH_DEBUG
@@ -654,25 +782,13 @@ int git_smart__push(git_transport *transport, git_push *push)
 	else if (parse_report(&t->buffer, push) < 0)
 		goto on_error;
 
-	/* If we updated at least one ref, then we need to re-acquire the list of 
-	 * refs so the caller can call git_remote_update_tips afterward. TODO: Use
-	 * the data from the push report to do this without another network call */
-	if (push->specs.length) {
-		git_cred_acquire_cb cred_cb = t->cred_acquire_cb;
-		void *cred_payload = t->cred_acquire_payload;
-		int flags = t->flags;
-
-		url = git__strdup(t->url);
-
-		if (!url || t->parent.close(&t->parent) < 0 ||
-			t->parent.connect(&t->parent, url, cred_cb, cred_payload, GIT_DIRECTION_PUSH, flags))
-			goto on_error;
-	}
+	if (push->status.length &&
+		update_refs_from_report(&t->refs, &push->specs, &push->status) < 0)
+		goto on_error;
 
 	error = 0;
 
 on_error:
-	git__free(url);
 	git_buf_free(&pktline);
 
 	return error;

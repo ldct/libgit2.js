@@ -10,7 +10,7 @@ static const size_t index_entry_count_2 = 1437;
 
 // Suite data
 struct test_entry {
-   int index;
+   size_t index;
    char path[128];
    git_off_t file_size;
    git_time_t mtime;
@@ -131,8 +131,10 @@ void test_index_tests__find_in_existing(void)
    cl_git_pass(git_index_open(&index, TEST_INDEX_PATH));
 
    for (i = 0; i < ARRAY_SIZE(test_entries); ++i) {
-      int idx = git_index_find(index, test_entries[i].path);
-      cl_assert(idx == test_entries[i].index);
+	  size_t idx;
+
+	  cl_assert(!git_index_find(&idx, index, test_entries[i].path));
+	  cl_assert(idx == test_entries[i].index);
    }
 
    git_index_free(index);
@@ -146,8 +148,7 @@ void test_index_tests__find_in_empty(void)
    cl_git_pass(git_index_open(&index, "fake-index"));
 
    for (i = 0; i < ARRAY_SIZE(test_entries); ++i) {
-      int idx = git_index_find(index, test_entries[i].path);
-      cl_assert(idx == GIT_ENOTFOUND);
+      cl_assert(GIT_ENOTFOUND == git_index_find(NULL, index, test_entries[i].path));
    }
 
    git_index_free(index);
@@ -233,7 +234,7 @@ void test_index_tests__add(void)
 	cl_git_pass(git_oid_fromstr(&id1, "a8233120f6ad708f843d861ce2b7228ec4e3dec6"));
 
 	/* Add the new file to the index */
-	cl_git_pass(git_index_add_from_workdir(index, "test.txt"));
+	cl_git_pass(git_index_add_bypath(index, "test.txt"));
 
 	/* Wow... it worked! */
 	cl_assert(git_index_entrycount(index) == 1);
@@ -250,7 +251,7 @@ void test_index_tests__add(void)
 	git_repository_free(repo);
 }
 
-void test_index_tests__add_from_workdir_to_a_bare_repository_returns_EBAREPO(void)
+void test_index_tests__add_bypath_to_a_bare_repository_returns_EBAREPO(void)
 {
 	git_repository *bare_repo;
 	git_index *index;
@@ -258,7 +259,7 @@ void test_index_tests__add_from_workdir_to_a_bare_repository_returns_EBAREPO(voi
 	cl_git_pass(git_repository_open(&bare_repo, cl_fixture("testrepo.git")));
 	cl_git_pass(git_repository_index(&index, bare_repo));
 
-	cl_assert_equal_i(GIT_EBAREREPO, git_index_add_from_workdir(index, "test.txt"));
+	cl_assert_equal_i(GIT_EBAREREPO, git_index_add_bypath(index, "test.txt"));
 
 	git_index_free(index);
 	git_repository_free(bare_repo);
@@ -280,7 +281,7 @@ void test_index_tests__write_invalid_filename(void)
 
 	cl_git_mkfile("./read_tree/.git/hello", NULL);
 
-	cl_git_pass(git_index_add_from_workdir(index, ".git/hello"));
+	cl_git_pass(git_index_add_bypath(index, ".git/hello"));
 
 	/* write-tree */
 	cl_git_fail(git_index_write_tree(&expected, index));
@@ -303,7 +304,7 @@ void test_index_tests__remove_entry(void)
 	cl_assert(git_index_entrycount(index) == 0);
 
 	cl_git_mkfile("index_test/hello", NULL);
-	cl_git_pass(git_index_add_from_workdir(index, "hello"));
+	cl_git_pass(git_index_add_bypath(index, "hello"));
 	cl_git_pass(git_index_write(index));
 
 	cl_git_pass(git_index_read(index)); /* reload */
@@ -339,10 +340,10 @@ void test_index_tests__remove_directory(void)
 	cl_git_mkfile("index_test/a/3.txt", NULL);
 	cl_git_mkfile("index_test/b.txt", NULL);
 
-	cl_git_pass(git_index_add_from_workdir(index, "a/1.txt"));
-	cl_git_pass(git_index_add_from_workdir(index, "a/2.txt"));
-	cl_git_pass(git_index_add_from_workdir(index, "a/3.txt"));
-	cl_git_pass(git_index_add_from_workdir(index, "b.txt"));
+	cl_git_pass(git_index_add_bypath(index, "a/1.txt"));
+	cl_git_pass(git_index_add_bypath(index, "a/2.txt"));
+	cl_git_pass(git_index_add_bypath(index, "a/3.txt"));
+	cl_git_pass(git_index_add_bypath(index, "b.txt"));
 	cl_git_pass(git_index_write(index));
 
 	cl_git_pass(git_index_read(index)); /* reload */

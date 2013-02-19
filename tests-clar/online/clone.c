@@ -6,6 +6,9 @@
 
 #define LIVE_REPO_URL "http://github.com/libgit2/TestGitRepository"
 #define LIVE_EMPTYREPO_URL "http://github.com/libgit2/TestEmptyRepository"
+#define BB_REPO_URL "https://libgit2@bitbucket.org/libgit2/testgitrepository.git"
+#define BB_REPO_URL_WITH_PASS "https://libgit2:libgit2@bitbucket.org/libgit2/testgitrepository.git"
+#define BB_REPO_URL_WITH_WRONG_PASS "https://libgit2:wrong@bitbucket.org/libgit2/testgitrepository.git"
 
 static git_repository *g_repo;
 static git_clone_options g_options;
@@ -78,11 +81,12 @@ static void checkout_progress(const char *path, size_t cur, size_t tot, void *pa
 	(*was_called) = true;
 }
 
-static void fetch_progress(const git_transfer_progress *stats, void *payload)
+static int fetch_progress(const git_transfer_progress *stats, void *payload)
 {
 	bool *was_called = (bool*)payload;
 	GIT_UNUSED(stats);
 	(*was_called) = true;
+	return 0;
 }
 
 void test_online_clone__can_checkout_a_cloned_repo(void)
@@ -150,4 +154,47 @@ void test_online_clone__credentials(void)
 	g_options.cred_acquire_payload = &user_pass;
 
 	cl_git_pass(git_clone(&g_repo, remote_url, "./foo", &g_options));
+	git_repository_free(g_repo); g_repo = NULL;
+	cl_fixture_cleanup("./foo");
+}
+
+void test_online_clone__bitbucket_style(void)
+{
+	git_cred_userpass_payload user_pass = {
+		"libgit2", "libgit2"
+	};
+
+	g_options.cred_acquire_cb = git_cred_userpass;
+	g_options.cred_acquire_payload = &user_pass;
+
+	cl_git_pass(git_clone(&g_repo, BB_REPO_URL, "./foo", &g_options));
+	git_repository_free(g_repo); g_repo = NULL;
+	cl_fixture_cleanup("./foo");
+
+	/* User and pass from URL */
+	user_pass.password = "wrong";
+	cl_git_pass(git_clone(&g_repo, BB_REPO_URL_WITH_PASS, "./foo", &g_options));
+	git_repository_free(g_repo); g_repo = NULL;
+	cl_fixture_cleanup("./foo");
+
+	/* Wrong password in URL, fall back to user_pass */
+	user_pass.password = "libgit2";
+	cl_git_pass(git_clone(&g_repo, BB_REPO_URL_WITH_WRONG_PASS, "./foo", &g_options));
+	git_repository_free(g_repo); g_repo = NULL;
+	cl_fixture_cleanup("./foo");
+}
+
+static int cancel_at_half(const git_transfer_progress *stats, void *payload)
+{
+	GIT_UNUSED(payload);
+
+	if (stats->received_objects > (stats->total_objects/2))
+		return 1;
+	return 0;
+}
+
+void test_online_clone__can_cancel(void)
+{
+	g_options.fetch_progress_cb = cancel_at_half;
+	cl_git_fail_with(git_clone(&g_repo, LIVE_REPO_URL, "./foo", &g_options), GIT_EUSER);
 }
