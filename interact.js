@@ -1,4 +1,4 @@
-build instructions
+//build instructions
 
 mkdir build
 cd build
