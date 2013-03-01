@@ -36,8 +36,11 @@ int cd(char *path) {
     return chdir(path);
 }
 
-int touch(char *filename) {
-    int fd = open(filename, O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
-    close(fd);
+int touch(char *filename, char *content) {
+
+    FILE *fp;   
+    fp = fopen(filename, "w");
+    fprintf(fp, "%s", content);
+    fclose(fp);
     return 0;
 }

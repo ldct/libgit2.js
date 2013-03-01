@@ -114,15 +114,11 @@ IF(NOT ZLIB_LIBRARY)
 	# error.
 	FIND_PACKAGE(ZLIB QUIET)
 ENDIF()
-IF (ZLIB_FOUND)
-	INCLUDE_DIRECTORIES(${ZLIB_INCLUDE_DIRS})
-	LINK_LIBRARIES(${ZLIB_LIBRARIES})
-ELSE()
-	MESSAGE( "zlib was not found; using bundled 3rd-party sources." )
-	INCLUDE_DIRECTORIES(deps/zlib)
-	ADD_DEFINITIONS(-DNO_VIZ -DSTDC -DNO_GZIP)
-	FILE(GLOB SRC_ZLIB deps/zlib/*.c)
-ENDIF()
+
+MESSAGE( "zlib was not found; using bundled 3rd-party sources." )
+INCLUDE_DIRECTORIES(deps/zlib)
+ADD_DEFINITIONS(-DNO_VIZ -DSTDC -DNO_GZIP)
+FILE(GLOB SRC_ZLIB deps/zlib/*.c)
 
 # Platform specific compilation flags
 IF (MSVC)
