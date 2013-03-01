@@ -375,7 +375,8 @@ int p_vsnprintf(char *buffer, size_t count, const char *format, va_list argptr)
 #ifdef _MSC_VER
 	int len;
 
-	if (count == 0 || (len = _vsnprintf(buffer, count, format, argptr)) < 0)
+	if (count == 0 ||
+		(len = _vsnprintf_s(buffer, count, _TRUNCATE, format, argptr)) < 0)
 		return _vscprintf(format, argptr);
 
 	return len;
@@ -487,11 +488,14 @@ p_gmtime_r (const time_t *timer, struct tm *result)
 #define DELTA_EPOCH_IN_MICROSECS  11644473600000000ULL
 #endif
  
+#ifndef _TIMEZONE_DEFINED
+#define _TIMEZONE_DEFINED
 struct timezone 
 {
    int  tz_minuteswest; /* minutes W of Greenwich */
    int  tz_dsttime;     /* type of dst correction */
 };
+#endif
  
 int p_gettimeofday(struct timeval *tv, struct timezone *tz)
 {

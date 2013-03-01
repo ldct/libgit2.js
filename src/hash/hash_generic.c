@@ -232,7 +232,7 @@ int git_hash_init(git_hash_ctx *ctx)
 	ctx->H[3] = 0x10325476;
 	ctx->H[4] = 0xc3d2e1f0;
 
-    return 0;
+	return 0;
 }
 
 int git_hash_update(git_hash_ctx *ctx, const void *data, size_t len)
