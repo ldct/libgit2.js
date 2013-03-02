@@ -5,6 +5,7 @@
 
 git_repository* repo;
 
+
 int stage_and_commit(char* filename, char* message) { //only works for a single file
 
 	git_oid tree_oid, commit_oid;
