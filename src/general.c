@@ -18,26 +18,26 @@ int stage_and_commit(char* filename, char* message) { //only works for a single 
   git_index_write(index);
 
   git_index_write_tree(&tree_oid, index);
-	git_index_free(index);
-	  
+  git_index_free(index);
+    
   git_tree_lookup(&tree, repo, &tree_oid);
   
   git_signature_new(&signature, "Li Xuanji", "xuanji@gmail.com", 1323847743, 60);
   git_commit_create_v(
-		&commit_oid,
-		repo,
-		"HEAD",
-		signature,
-		signature,
-		NULL,
-		message,
-		tree,
-		0);
-		
-	git_tree_free(tree);
-	git_signature_free(signature);
-	
-	return 0;
+    &commit_oid,
+    repo,
+    "HEAD",
+    signature,
+    signature,
+    NULL,
+    message,
+    tree,
+    0);
+
+  git_tree_free(tree);
+  git_signature_free(signature);
+
+  return 0;
 }
 
 int listrefs() {
@@ -61,7 +61,6 @@ int listrefs() {
       git_oid_fmt(out, git_reference_target(ref));
       printf("%s [%s]\n", refname, out);
       break;
-
     case GIT_REF_SYMBOLIC:
       printf("%s => %s\n", refname, git_reference_symbolic_target(ref));
       break;
@@ -99,13 +98,13 @@ int revwalk_from_head() {
 int general() {
   
   git_repository_init(&repo, "zit", 0);
-	
-	touch("zit/readme", "Zit \n --- git for zombieis");
-	stage_and_commit("readme", "Initial commit\n\0");
-	
-	touch("zit/TODO", "- Make project logo \n- Watch Friends");
-	stage_and_commit("TODO", "TODO\n\0");
-	
+
+  touch("zit/readme", "Zit \n --- git for zombieis");
+  stage_and_commit("readme", "Initial commit\n\0");
+
+  touch("zit/TODO", "- Make project logo \n- Watch Friends");
+  stage_and_commit("TODO", "TODO\n\0");
+
   revwalk_from_head();
   
   listrefs();
