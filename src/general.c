@@ -8,15 +8,15 @@ git_repository* repo;
 
 int stage_and_commit(char* filename, char* message) { //only works for a single file
 
-	git_oid tree_oid, commit_oid;
-	git_tree *tree;
-	git_signature *signature;
-	git_index *index;
-  
+  git_oid tree_oid, commit_oid;
+  git_tree *tree;
+  git_signature *signature;
+  git_index *index;
+
   git_repository_index(&index, repo);
   git_index_add_bypath(index, filename);
   git_index_write(index);
-  
+
   git_index_write_tree(&tree_oid, index);
 	git_index_free(index);
 	  

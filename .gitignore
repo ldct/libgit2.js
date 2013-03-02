@@ -15,6 +15,7 @@
 .waf*
 build/
 build-amiga/
+build-native/
 tests/tmp/
 msvc/Debug/
 msvc/Release/
