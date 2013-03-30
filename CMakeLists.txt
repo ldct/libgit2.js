@@ -268,7 +268,7 @@ ELSEIF (AMIGA)
 ELSE()
 	FILE(GLOB SRC_OS src/unix/*.c)
 ENDIF()
-FILE(GLOB SRC_GIT2 src/*.c src/transports/*.c src/xdiff/*.c)
+FILE(GLOB SRC_GIT2 src/*.c src/transports/*.c src/xdiff/*.c src/porcelain/*.c)
 
 # Compile and link libgit2
 ADD_LIBRARY(git2 ${SRC_GIT2} ${SRC_OS} ${SRC_ZLIB} ${SRC_HTTP} ${SRC_REGEX} ${SRC_SHA1} ${WIN_RC})
