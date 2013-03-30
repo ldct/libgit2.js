@@ -136,7 +136,7 @@ int cl_rename(const char *source, const char *dest)
 #include <stdlib.h>
 char *cl_getenv(const char *name)
 {
-   return getenv(name);
+	return getenv(name);
 }
 
 int cl_setenv(const char *name, const char *value)
@@ -322,4 +322,12 @@ int cl_git_remove_placeholders(const char *directory_path, const char *filename)
 	git_buf_free(&buffer);
 
 	return error;
+}
+
+void cl_repo_set_bool(git_repository *repo, const char *cfg, int value)
+{
+	git_config *config;
+	cl_git_pass(git_repository_config(&config, repo));
+	cl_git_pass(git_config_set_bool(config, cfg, value != 0));
+	git_config_free(config);
 }

@@ -694,7 +694,7 @@ int git_submodule_open(
 	git_buf_free(&path);
 
 	/* if we have opened the submodule successfully, let's grab the HEAD OID */
-	if (!error && !(submodule->flags & GIT_SUBMODULE_STATUS__WD_OID_VALID)) {
+	if (!error) {
 		if (!git_reference_name_to_id(
 				&submodule->wd_oid, *subrepo, GIT_HEAD_FILE))
 			submodule->flags |= GIT_SUBMODULE_STATUS__WD_OID_VALID;
@@ -1135,10 +1135,10 @@ static int load_submodule_config_from_index(
 	const git_index_entry *entry;
 
 	if ((error = git_repository_index__weakptr(&index, repo)) < 0 ||
-		(error = git_iterator_for_index(&i, index)) < 0)
+		(error = git_iterator_for_index(&i, index, 0, NULL, NULL)) < 0)
 		return error;
 
-	error = git_iterator_current(i, &entry);
+	error = git_iterator_current(&entry, i);
 
 	while (!error && entry != NULL) {
 
@@ -1154,7 +1154,7 @@ static int load_submodule_config_from_index(
 				git_oid_cpy(gitmodules_oid, &entry->oid);
 		}
 
-		error = git_iterator_advance(i, &entry);
+		error = git_iterator_advance(&entry, i);
 	}
 
 	git_iterator_free(i);
@@ -1173,12 +1173,12 @@ static int load_submodule_config_from_head(
 	if ((error = git_repository_head_tree(&head, repo)) < 0)
 		return error;
 
-	if ((error = git_iterator_for_tree(&i, head)) < 0) {
+	if ((error = git_iterator_for_tree(&i, head, 0, NULL, NULL)) < 0) {
 		git_tree_free(head);
 		return error;
 	}
 
-	error = git_iterator_current(i, &entry);
+	error = git_iterator_current(&entry, i);
 
 	while (!error && entry != NULL) {
 
@@ -1195,7 +1195,7 @@ static int load_submodule_config_from_head(
 				git_oid_cpy(gitmodules_oid, &entry->oid);
 		}
 
-		error = git_iterator_advance(i, &entry);
+		error = git_iterator_advance(&entry, i);
 	}
 
 	git_iterator_free(i);
@@ -1497,7 +1497,7 @@ static int submodule_wd_status(unsigned int *status, git_submodule *sm)
 			if (untracked > 0)
 				*status |= GIT_SUBMODULE_STATUS_WD_UNTRACKED;
 
-			if ((git_diff_num_deltas(diff) - untracked) > 0)
+			if (git_diff_num_deltas(diff) != untracked)
 				*status |= GIT_SUBMODULE_STATUS_WD_WD_MODIFIED;
 
 			git_diff_list_free(diff);

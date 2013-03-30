@@ -16,12 +16,14 @@ CMAKE_MINIMUM_REQUIRED(VERSION 2.6)
 
 # Build options
 #
+OPTION( SONAME				"Set the (SO)VERSION of the target"		ON  )
 OPTION( BUILD_SHARED_LIBS	"Build Shared Library (OFF for Static)"	ON  )
 OPTION( THREADSAFE			"Build libgit2 as threadsafe"			OFF )
 OPTION( BUILD_CLAR			"Build Tests using the Clar suite"		ON  )
 OPTION( BUILD_EXAMPLES		"Build library usage example apps"		OFF )
 OPTION( TAGS				"Generate tags"							OFF )
 OPTION( PROFILE				"Generate profiling information"		OFF )
+OPTION( ENABLE_TRACE		"Enables tracing support"				OFF )
 IF(MSVC)
 	# This option is only availalbe when building with MSVC. By default,
 	# libgit2 is build using the stdcall calling convention, as that's what
@@ -33,6 +35,10 @@ IF(MSVC)
 	# - Turn this off by invoking CMake with the "-DSTDCALL=Off" argument.
 	#
 	OPTION( STDCALL			"Build libgit2 with the __stdcall convention"	ON  )
+
+	# This option must match the settings used in your program, in particular if you
+	# are linking statically
+	OPTION( STATIC_CRT		"Link the static CRT libraries"	ON  )
 ENDIF()
 
 # Installation paths
@@ -102,6 +108,11 @@ ELSE()
 	FILE(GLOB SRC_SHA1 src/hash/hash_generic.c)
 ENDIF()
 
+# Enable tracing
+IF (ENABLE_TRACE STREQUAL "ON")
+	ADD_DEFINITIONS(-DGIT_TRACE)
+ENDIF()
+
 # Include POSIX regex when it is required
 IF(WIN32 OR AMIGA)
 	INCLUDE_DIRECTORIES(deps/regex)
@@ -134,25 +145,36 @@ IF (MSVC)
 		SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /Gz")
 	ENDIF ()
 
+	IF (STATIC_CRT)
+		SET(CRT_FLAG_DEBUG "/MTd")
+		SET(CRT_FLAG_RELEASE "/MT")
+	ELSE()
+	    SET(CRT_FLAG_DEBUG "/MDd")
+		SET(CRT_FLAG_RELEASE "/MD")
+	ENDIF()
+
 	# /Zi - Create debugging information
 	# /Od - Disable optimization
 	# /D_DEBUG - #define _DEBUG
 	# /MTd - Statically link the multithreaded debug version of the CRT
+	# /MDd - Dynamically link the multithreaded debug version of the CRT
 	# /RTC1 - Run time checks
-	SET(CMAKE_C_FLAGS_DEBUG "/Zi /Od /D_DEBUG /MTd /RTC1")
+	SET(CMAKE_C_FLAGS_DEBUG "/Zi /Od /D_DEBUG /RTC1 ${CRT_FLAG_DEBUG}")
 
+	# /DNDEBUG - Disables asserts
 	# /MT - Statically link the multithreaded release version of the CRT
+	# /MD - Dynamically link the multithreaded release version of the CRT
 	# /O2 - Optimize for speed
 	# /Oy - Enable frame pointer omission (FPO) (otherwise CMake will automatically turn it off)
 	# /GL - Link time code generation (whole program optimization)
 	# /Gy - Function-level linking
-	SET(CMAKE_C_FLAGS_RELEASE "/MT /O2 /Oy /GL /Gy")
+	SET(CMAKE_C_FLAGS_RELEASE "/DNDEBUG /O2 /Oy /GL /Gy ${CRT_FLAG_RELEASE}")
 
 	# /Oy- - Disable frame pointer omission (FPO)
-	SET(CMAKE_C_FLAGS_RELWITHDEBINFO "/Zi /MT /O2 /Oy- /GL /Gy")
+	SET(CMAKE_C_FLAGS_RELWITHDEBINFO "/DNDEBUG /Zi /O2 /Oy- /GL /Gy ${CRT_FLAG_RELEASE}")
 
 	# /O1 - Optimize for size
-	SET(CMAKE_C_FLAGS_MINSIZEREL "/MT /O1 /Oy /GL /Gy")
+	SET(CMAKE_C_FLAGS_MINSIZEREL "/DNDEBUG /O1 /Oy /GL /Gy ${CRT_FLAG_RELEASE}")
 
 	# /DYNAMICBASE - Address space load randomization (ASLR)
 	# /NXCOMPAT - Data execution prevention (DEP)
@@ -190,6 +212,11 @@ ELSE ()
 
 	IF (MINGW) # MinGW always does PIC and complains if we tell it to
 		STRING(REGEX REPLACE "-fPIC" "" CMAKE_SHARED_LIBRARY_C_FLAGS "${CMAKE_SHARED_LIBRARY_C_FLAGS}")
+		# MinGW >= 3.14 uses the C99-style stdio functions
+		# automatically, but forks like mingw-w64 still want
+		# us to define this in order to use them
+		ADD_DEFINITIONS(-D__USE_MINGW_ANSI_STDIO=1)
+
 	ELSEIF (BUILD_SHARED_LIBS)
 		SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fvisibility=hidden -fPIC")
 	ENDIF ()
@@ -248,10 +275,18 @@ ADD_LIBRARY(git2 ${SRC_GIT2} ${SRC_OS} ${SRC_ZLIB} ${SRC_HTTP} ${SRC_REGEX} ${SR
 TARGET_LINK_LIBRARIES(git2 ${SSL_LIBRARIES})
 TARGET_OS_LIBRARIES(git2)
 
+# Workaround for Cmake bug #0011240 (see http://public.kitware.com/Bug/view.php?id=11240)
+# Win64+MSVC+static libs = linker error
+IF(MSVC AND NOT BUILD_SHARED_LIBS AND (${CMAKE_SIZEOF_VOID_P} MATCHES "8") )
+  SET_TARGET_PROPERTIES(git2 PROPERTIES STATIC_LIBRARY_FLAGS "/MACHINE:x64")
+ENDIF()
+
 MSVC_SPLIT_SOURCES(git2)
 
-SET_TARGET_PROPERTIES(git2 PROPERTIES VERSION ${LIBGIT2_VERSION_STRING})
-SET_TARGET_PROPERTIES(git2 PROPERTIES SOVERSION ${LIBGIT2_VERSION_MAJOR})
+IF (SONAME)
+	SET_TARGET_PROPERTIES(git2 PROPERTIES VERSION ${LIBGIT2_VERSION_STRING})
+	SET_TARGET_PROPERTIES(git2 PROPERTIES SOVERSION ${LIBGIT2_VERSION_MAJOR})
+ENDIF()
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/libgit2.pc.in ${CMAKE_CURRENT_BINARY_DIR}/libgit2.pc @ONLY)
 
 IF (MSVC_IDE)

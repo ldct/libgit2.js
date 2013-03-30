@@ -55,23 +55,28 @@ static int valid_entry_name(const char *filename)
 		  strcmp(filename, DOT_GIT) != 0));
 }
 
-int git_tree_entry_cmp(const git_tree_entry *e1, const git_tree_entry *e2)
+static int entry_sort_cmp(const void *a, const void *b)
 {
+	const git_tree_entry *e1 = (const git_tree_entry *)a;
+	const git_tree_entry *e2 = (const git_tree_entry *)b;
+
 	return git_path_cmp(
 		e1->filename, e1->filename_len, git_tree_entry__is_tree(e1),
-		e2->filename, e2->filename_len, git_tree_entry__is_tree(e2));
+		e2->filename, e2->filename_len, git_tree_entry__is_tree(e2),
+		git__strncmp);
+}
+
+int git_tree_entry_cmp(const git_tree_entry *e1, const git_tree_entry *e2)
+{
+	return entry_sort_cmp(e1, e2);
 }
 
 int git_tree_entry_icmp(const git_tree_entry *e1, const git_tree_entry *e2)
 {
-	return git_path_icmp(
+	return git_path_cmp(
 		e1->filename, e1->filename_len, git_tree_entry__is_tree(e1),
-		e2->filename, e2->filename_len, git_tree_entry__is_tree(e2));
-}
-
-static int entry_sort_cmp(const void *a, const void *b)
-{
-	return git_tree_entry_cmp((const git_tree_entry *)a, (const git_tree_entry *)b);
+		e2->filename, e2->filename_len, git_tree_entry__is_tree(e2),
+		git__strncasecmp);
 }
 
 static git_tree_entry *alloc_entry(const char *filename)
@@ -566,6 +571,7 @@ int git_tree__write_index(
 	git_oid *oid, git_index *index, git_repository *repo)
 {
 	int ret;
+	bool old_ignore_case = false;
 
 	assert(oid && index && repo);
 
@@ -580,8 +586,21 @@ int git_tree__write_index(
 		return 0;
 	}
 
-	/* The tree cache didn't help us */
+	/* The tree cache didn't help us; we'll have to write
+	 * out a tree. If the index is ignore_case, we must
+	 * make it case-sensitive for the duration of the tree-write
+	 * operation. */
+
+	if (index->ignore_case) {
+		old_ignore_case = true;
+		git_index__set_ignore_case(index, false);
+	}
+
 	ret = write_tree(oid, repo, index, "", 0);
+
+	if (old_ignore_case)
+		git_index__set_ignore_case(index, true);
+
 	return ret < 0 ? ret : 0;
 }
 

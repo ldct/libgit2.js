@@ -20,7 +20,7 @@
 
 static void clear_parents(git_commit *commit)
 {
-	unsigned int i;
+	size_t i;
 
 	for (i = 0; i < commit->parent_ids.length; ++i) {
 		git_oid *parent = git_vector_get(&commit->parent_ids, i);
@@ -121,7 +121,7 @@ int git_commit_create(
 	git_buf_free(&commit);
 
 	if (update_ref != NULL)
-		return git_reference__update(repo, oid, update_ref);
+		return git_reference__update_terminal(repo, update_ref, oid);
 
 	return 0;
 

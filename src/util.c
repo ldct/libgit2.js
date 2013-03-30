@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <ctype.h>
 #include "posix.h"
+#include "fileops.h"
 
 #ifdef _MSC_VER
 # include <Shlwapi.h>
@@ -37,14 +38,32 @@ int git_libgit2_capabilities()
 /* Declarations for tuneable settings */
 extern size_t git_mwindow__window_size;
 extern size_t git_mwindow__mapped_limit;
+extern size_t git_odb__cache_size;
 
-void git_libgit2_opts(int key, ...)
+static int config_level_to_futils_dir(int config_level)
 {
+	int val = -1;
+
+	switch (config_level) {
+	case GIT_CONFIG_LEVEL_SYSTEM: val = GIT_FUTILS_DIR_SYSTEM; break;
+	case GIT_CONFIG_LEVEL_XDG:    val = GIT_FUTILS_DIR_XDG; break;
+	case GIT_CONFIG_LEVEL_GLOBAL: val = GIT_FUTILS_DIR_GLOBAL; break;
+	default:
+		giterr_set(
+			GITERR_INVALID, "Invalid config path selector %d", config_level);
+	}
+
+	return val;
+}
+
+int git_libgit2_opts(int key, ...)
+{
+	int error = 0;
 	va_list ap;
 
 	va_start(ap, key);
 
-	switch(key) {
+	switch (key) {
 	case GIT_OPT_SET_MWINDOW_SIZE:
 		git_mwindow__window_size = va_arg(ap, size_t);
 		break;
@@ -60,9 +79,33 @@ void git_libgit2_opts(int key, ...)
 	case GIT_OPT_GET_MWINDOW_MAPPED_LIMIT:
 		*(va_arg(ap, size_t *)) = git_mwindow__mapped_limit;
 		break;
+
+	case GIT_OPT_GET_SEARCH_PATH:
+		if ((error = config_level_to_futils_dir(va_arg(ap, int))) >= 0) {
+			char *out = va_arg(ap, char *);
+			size_t outlen = va_arg(ap, size_t);
+
+			error = git_futils_dirs_get_str(out, outlen, error);
+		}
+		break;
+
+	case GIT_OPT_SET_SEARCH_PATH:
+		if ((error = config_level_to_futils_dir(va_arg(ap, int))) >= 0)
+			error = git_futils_dirs_set(error, va_arg(ap, const char *));
+		break;
+
+	case GIT_OPT_GET_ODB_CACHE_SIZE:
+		*(va_arg(ap, size_t *)) = git_odb__cache_size;
+		break;
+
+	case GIT_OPT_SET_ODB_CACHE_SIZE:
+		git_odb__cache_size = va_arg(ap, size_t);
+		break;
 	}
 
 	va_end(ap);
+
+	return error;
 }
 
 void git_strarray_free(git_strarray *array)
@@ -72,6 +115,8 @@ void git_strarray_free(git_strarray *array)
 		git__free(array->strings[i]);
 
 	git__free(array->strings);
+
+	memset(array, 0, sizeof(*array));
 }
 
 int git_strarray_copy(git_strarray *tgt, const git_strarray *src)
@@ -89,8 +134,10 @@ int git_strarray_copy(git_strarray *tgt, const git_strarray *src)
 	GITERR_CHECK_ALLOC(tgt->strings);
 
 	for (i = 0; i < src->count; ++i) {
-		tgt->strings[tgt->count] = git__strdup(src->strings[i]);
+		if (!src->strings[i])
+			continue;
 
+		tgt->strings[tgt->count] = git__strdup(src->strings[i]);
 		if (!tgt->strings[tgt->count]) {
 			git_strarray_free(tgt);
 			memset(tgt, 0, sizeof(*tgt));
@@ -606,4 +653,57 @@ size_t git__unescape(char *str)
 	}
 
 	return (pos - str);
+}
+
+#if defined(GIT_WIN32) || defined(BSD)
+typedef struct {
+	git__sort_r_cmp cmp;
+	void *payload;
+} git__qsort_r_glue;
+
+static int GIT_STDLIB_CALL git__qsort_r_glue_cmp(
+	void *payload, const void *a, const void *b)
+{
+	git__qsort_r_glue *glue = payload;
+	return glue->cmp(a, b, glue->payload);
+}
+#endif
+
+void git__qsort_r(
+	void *els, size_t nel, size_t elsize, git__sort_r_cmp cmp, void *payload)
+{
+#if defined(__MINGW32__)
+	git__insertsort_r(els, nel, elsize, NULL, cmp, payload);
+#elif defined(GIT_WIN32)
+	git__qsort_r_glue glue = { cmp, payload };
+	qsort_s(els, nel, elsize, git__qsort_r_glue_cmp, &glue);
+#elif defined(BSD)
+	git__qsort_r_glue glue = { cmp, payload };
+	qsort_r(els, nel, elsize, &glue, git__qsort_r_glue_cmp);
+#else
+	qsort_r(els, nel, elsize, cmp, payload);
+#endif
+}
+
+void git__insertsort_r(
+	void *els, size_t nel, size_t elsize, void *swapel,
+	git__sort_r_cmp cmp, void *payload)
+{
+	uint8_t *base = els;
+	uint8_t *end = base + nel * elsize;
+	uint8_t *i, *j;
+	bool freeswap = !swapel;
+
+	if (freeswap)
+		swapel = git__malloc(elsize);
+
+	for (i = base + elsize; i < end; i += elsize)
+		for (j = i; j > base && cmp(j, j - elsize, payload) < 0; j -= elsize) {
+			memcpy(swapel, j, elsize);
+			memcpy(j, j - elsize, elsize);
+			memcpy(j - elsize, swapel, elsize);
+		}
+
+	if (freeswap)
+		git__free(swapel);
 }

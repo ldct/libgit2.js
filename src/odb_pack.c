@@ -132,9 +132,6 @@ struct pack_writepack {
  *
  ***********************************************************/
 
-static void pack_window_free_all(struct pack_backend *backend, struct git_pack_file *p);
-static int pack_window_contains(git_mwindow *win, off_t offset);
-
 static int packfile_sort__cb(const void *a_, const void *b_);
 
 static int packfile_load__cb(void *_data, git_buf *path);
@@ -161,23 +158,6 @@ static int pack_entry_find_prefix(
  * PACK WINDOW MANAGEMENT
  *
  ***********************************************************/
-
-GIT_INLINE(void) pack_window_free_all(struct pack_backend *backend, struct git_pack_file *p)
-{
-	GIT_UNUSED(backend);
-	git_mwindow_free_all(&p->mwf);
-}
-
-GIT_INLINE(int) pack_window_contains(git_mwindow *win, off_t offset)
-{
-	/* We must promise at least 20 bytes (one hash) after the
-	 * offset is available from this window, otherwise the offset
-	 * is not actually in this window and a different window (which
-	 * has that one hash excess) must be used. This is to support
-	 * the object header and delta base parsing routines below.
-	 */
-	return git_mwindow_contains(win, offset + 20);
-}
 
 static int packfile_sort__cb(const void *a_, const void *b_)
 {
@@ -215,7 +195,7 @@ static int packfile_load__cb(void *_data, git_buf *path)
 	struct pack_backend *backend = (struct pack_backend *)_data;
 	struct git_pack_file *pack;
 	int error;
-	unsigned int i;
+	size_t i;
 
 	if (git__suffixcmp(path->ptr, ".idx") != 0)
 		return 0; /* not an index */
@@ -242,7 +222,7 @@ static int pack_entry_find_inner(
 	const git_oid *oid,
 	struct git_pack_file *last_found)
 {
-	unsigned int i;
+	size_t i;
 
 	if (last_found &&
 		git_pack_entry_find(e, last_found, oid, GIT_OID_HEXSZ) == 0)
@@ -286,7 +266,7 @@ static unsigned pack_entry_find_prefix_inner(
 		struct git_pack_file *last_found)
 {
 	int error;
-	unsigned int i;
+	size_t i;
 	unsigned found = 0;
 
 	if (last_found) {
@@ -530,7 +510,7 @@ static int pack_backend__writepack(struct git_odb_writepack **out,
 static void pack_backend__free(git_odb_backend *_backend)
 {
 	struct pack_backend *backend;
-	unsigned int i;
+	size_t i;
 
 	assert(_backend);
 

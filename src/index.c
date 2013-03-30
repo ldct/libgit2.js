@@ -242,8 +242,10 @@ static unsigned int index_merge_mode(
 	return index_create_mode(mode);
 }
 
-static void index_set_ignore_case(git_index *index, bool ignore_case)
+void git_index__set_ignore_case(git_index *index, bool ignore_case)
 {
+	index->ignore_case = ignore_case;
+
 	index->entries._cmp = ignore_case ? index_icmp : index_cmp;
 	index->entries_cmp_path = ignore_case ? index_icmp_path : index_cmp_path;
 	index->entries_search = ignore_case ? index_isrch : index_srch;
@@ -297,18 +299,8 @@ int git_index_new(git_index **out)
 
 static void index_free(git_index *index)
 {
-	git_index_entry *e;
-	git_index_reuc_entry *reuc;
-	size_t i;
-
 	git_index_clear(index);
-	git_vector_foreach(&index->entries, i, e) {
-		index_entry_free(e);
-	}
 	git_vector_free(&index->entries);
-	git_vector_foreach(&index->reuc, i, reuc) {
-		index_entry_reuc_free(reuc);
-	}
 	git_vector_free(&index->reuc);
 
 	git__free(index->index_file_path);
@@ -325,7 +317,7 @@ void git_index_free(git_index *index)
 
 void git_index_clear(git_index *index)
 {
-	unsigned int i;
+	size_t i;
 
 	assert(index);
 
@@ -335,16 +327,10 @@ void git_index_clear(git_index *index)
 		git__free(e->path);
 		git__free(e);
 	}
-
-	for (i = 0; i < index->reuc.length; ++i) {
-		git_index_reuc_entry *e;
-		e = git_vector_get(&index->reuc, i);
-		git__free(e->path);
-		git__free(e);
-	}
-
 	git_vector_clear(&index->entries);
-	git_vector_clear(&index->reuc);
+
+	git_index_reuc_clear(index);
+	
 	git_futils_filestamp_set(&index->stamp, NULL);
 
 	git_tree_cache_free(index->tree);
@@ -388,7 +374,7 @@ int git_index_set_caps(git_index *index, unsigned int caps)
 	}
 
 	if (old_ignore_case != index->ignore_case) {
-		index_set_ignore_case(index, index->ignore_case);
+		git_index__set_ignore_case(index, index->ignore_case);
 	}
 
 	return 0;
@@ -800,7 +786,7 @@ int git_index_remove(git_index *index, const char *path, int stage)
 	if (entry != NULL)
 		git_tree_cache_invalidate_path(index->tree, entry->path);
 
-	error = git_vector_remove(&index->entries, (unsigned int)position);
+	error = git_vector_remove(&index->entries, position);
 
 	if (!error)
 		index_entry_free(entry);
@@ -1143,12 +1129,27 @@ int git_index_reuc_remove(git_index *index, size_t position)
 	git_vector_sort(&index->reuc);
 
 	reuc = git_vector_get(&index->reuc, position);
-	error = git_vector_remove(&index->reuc, (unsigned int)position);
+	error = git_vector_remove(&index->reuc, position);
 
 	if (!error)
 		index_entry_reuc_free(reuc);
 
 	return error;
+}
+
+void git_index_reuc_clear(git_index *index)
+{
+	size_t i;
+	git_index_reuc_entry *reuc;
+
+	assert(index);
+
+	git_vector_foreach(&index->reuc, i, reuc) {
+		git__free(reuc->path);
+		git__free(reuc);
+	}
+
+	git_vector_clear(&index->reuc);
 }
 
 static int index_error_invalid(const char *message)
@@ -1677,55 +1678,4 @@ int git_index_read_tree(git_index *index, const git_tree *tree)
 git_repository *git_index_owner(const git_index *index)
 {
 	return INDEX_OWNER(index);
-}
-
-int git_index_read_tree_match(
-	git_index *index, git_tree *tree, git_strarray *strspec)
-{
-#if 0
-	git_iterator *iter = NULL;
-	const git_index_entry *entry;
-	char *pfx = NULL;
-	git_vector pathspec = GIT_VECTOR_INIT;
-	git_pool pathpool = GIT_POOL_INIT_STRINGPOOL;
-#endif
-
-	if (!git_pathspec_is_interesting(strspec))
-		return git_index_read_tree(index, tree);
-
-	return git_index_read_tree(index, tree);
-
-#if 0
-	/* The following loads the matches into the index, but doesn't
-	 * erase obsoleted entries (e.g. you load a blob at "a/b" which
-	 * should obsolete a blob at "a/b/c/d" since b is no longer a tree)
-	 */
-
-	if (git_pathspec_init(&pathspec, strspec, &pathpool) < 0)
-		return -1;
-
-	pfx = git_pathspec_prefix(strspec);
-
-	if ((error = git_iterator_for_tree_range(&iter, tree, pfx, pfx)) < 0 ||
-		(error = git_iterator_current(iter, &entry)) < 0)
-		goto cleanup;
-
-	while (entry != NULL) {
-		if (git_pathspec_match_path(
-				&pathspec, entry->path, false, false, NULL) &&
-			(error = git_index_add(index, entry)) < 0)
-			goto cleanup;
-
-		if ((error = git_iterator_advance(iter, &entry)) < 0)
-			goto cleanup;
-	}
-
-cleanup:
-	git_iterator_free(iter);
-	git_pathspec_free(&pathspec);
-	git_pool_clear(&pathpool);
-	git__free(pfx);
-
-	return error;
-#endif
 }

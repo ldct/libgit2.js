@@ -10,6 +10,8 @@ static diff_expects expect;
 void test_diff_tree__initialize(void)
 {
 	GIT_INIT_STRUCTURE(&opts, GIT_DIFF_OPTIONS_VERSION);
+	/* The default context lines is set by _INIT which we can't use here */
+	opts.context_lines = 3;
 
 	memset(&expect, 0, sizeof(expect));
 
@@ -422,6 +424,29 @@ void test_diff_tree__regular_blob_mode_changed_to_executable_file(void)
 	 */
 
 	process_tree_to_tree_diffing("806999", "a8595c");
+
+	cl_assert_equal_i(1, expect.files);
+	cl_assert_equal_i(0, expect.file_status[GIT_DELTA_DELETED]);
+	cl_assert_equal_i(1, expect.file_status[GIT_DELTA_MODIFIED]);
+	cl_assert_equal_i(0, expect.file_status[GIT_DELTA_ADDED]);
+	cl_assert_equal_i(0, expect.file_status[GIT_DELTA_TYPECHANGE]);
+}
+
+void test_diff_tree__issue_1397(void)
+{
+	/* this test shows that it is not needed */
+
+	g_repo = cl_git_sandbox_init("issue_1397");
+
+	cl_repo_set_bool(g_repo, "core.autocrlf", true);
+
+	cl_assert((a = resolve_commit_oid_to_tree(g_repo, "8a7ef04")) != NULL);
+	cl_assert((b = resolve_commit_oid_to_tree(g_repo, "7f483a7")) != NULL);
+
+	cl_git_pass(git_diff_tree_to_tree(&diff, g_repo, a, b, &opts));
+
+	cl_git_pass(git_diff_foreach(
+		diff, diff_file_cb, diff_hunk_cb, diff_line_cb, &expect));
 
 	cl_assert_equal_i(1, expect.files);
 	cl_assert_equal_i(0, expect.file_status[GIT_DELTA_DELETED]);

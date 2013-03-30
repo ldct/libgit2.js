@@ -65,6 +65,7 @@ extern int git_futils_mkdir_r(const char *path, const char *base, const mode_t m
  * * GIT_MKDIR_CHMOD says to chmod the final directory entry after creation
  * * GIT_MKDIR_CHMOD_PATH says to chmod each directory component in the path
  * * GIT_MKDIR_SKIP_LAST says to leave off the last element of the path
+ * * GIT_MKDIR_SKIP_LAST2 says to leave off the last 2 elements of the path
  * * GIT_MKDIR_VERIFY_DIR says confirm final item is a dir, not just EEXIST
  *
  * Note that the chmod options will be executed even if the directory already
@@ -76,7 +77,8 @@ typedef enum {
 	GIT_MKDIR_CHMOD = 4,
 	GIT_MKDIR_CHMOD_PATH = 8,
 	GIT_MKDIR_SKIP_LAST = 16,
-	GIT_MKDIR_VERIFY_DIR = 32,
+	GIT_MKDIR_SKIP_LAST2 = 32,
+	GIT_MKDIR_VERIFY_DIR = 64,
 } git_futils_mkdir_flags;
 
 /**
@@ -128,12 +130,20 @@ typedef enum {
 /**
  * Remove path and any files and directories beneath it.
  *
- * @param path Path to to top level directory to process.
+ * @param path Path to the top level directory to process.
  * @param base Root for relative path.
  * @param flags Combination of git_futils_rmdir_flags values
  * @return 0 on success; -1 on error.
  */
 extern int git_futils_rmdir_r(const char *path, const char *base, uint32_t flags);
+
+/**
+ * Remove all files and directories beneath the specified path.
+ *
+ * @param path Path to the top level directory to process.
+ * @return 0 on success; -1 on error.
+ */
+extern int git_futils_cleanupdir_r(const char *path);
 
 /**
  * Create and open a temporary file with a `_git2_` suffix.
@@ -160,13 +170,26 @@ extern int git_futils_cp(
 
 /**
  * Flags that can be passed to `git_futils_cp_r`.
+ *
+ * - GIT_CPDIR_CREATE_EMPTY_DIRS: create directories even if there are no
+ *   files under them (otherwise directories will only be created lazily
+ *   when a file inside them is copied).
+ * - GIT_CPDIR_COPY_SYMLINKS: copy symlinks, otherwise they are ignored.
+ * - GIT_CPDIR_COPY_DOTFILES: copy files with leading '.', otherwise ignored.
+ * - GIT_CPDIR_OVERWRITE: overwrite pre-existing files with source content,
+ *   otherwise they are silently skipped.
+ * - GIT_CPDIR_CHMOD_DIRS: explicitly chmod directories to `dirmode`
+ * - GIT_CPDIR_SIMPLE_TO_MODE: default tries to replicate the mode of the
+ *   source file to the target; with this flag, always use 0666 (or 0777 if
+ *   source has exec bits set) for target.
  */
 typedef enum {
-	GIT_CPDIR_CREATE_EMPTY_DIRS = 1,
-	GIT_CPDIR_COPY_SYMLINKS = 2,
-	GIT_CPDIR_COPY_DOTFILES = 4,
-	GIT_CPDIR_OVERWRITE = 8,
-	GIT_CPDIR_CHMOD = 16
+	GIT_CPDIR_CREATE_EMPTY_DIRS = (1u << 0),
+	GIT_CPDIR_COPY_SYMLINKS     = (1u << 1),
+	GIT_CPDIR_COPY_DOTFILES     = (1u << 2),
+	GIT_CPDIR_OVERWRITE         = (1u << 3),
+	GIT_CPDIR_CHMOD_DIRS        = (1u << 4),
+	GIT_CPDIR_SIMPLE_TO_MODE    = (1u << 5),
 } git_futils_cpdir_flags;
 
 /**
@@ -253,25 +276,72 @@ extern void git_futils_mmap_free(git_map *map);
  *
  * @param pathbuf buffer to write the full path into
  * @param filename name of file to find in the home directory
- * @return
- * - 0 if found;
- * - GIT_ENOTFOUND if not found;
- * - -1 on an unspecified OS related error.
+ * @return 0 if found, GIT_ENOTFOUND if not found, or -1 on other OS error
  */
 extern int git_futils_find_global_file(git_buf *path, const char *filename);
+
+/**
+ * Find an "XDG" file (i.e. one in user's XDG config path).
+ *
+ * @param pathbuf buffer to write the full path into
+ * @param filename name of file to find in the home directory
+ * @return 0 if found, GIT_ENOTFOUND if not found, or -1 on other OS error
+ */
+extern int git_futils_find_xdg_file(git_buf *path, const char *filename);
 
 /**
  * Find a "system" file (i.e. one shared for all users of the system).
  *
  * @param pathbuf buffer to write the full path into
  * @param filename name of file to find in the home directory
- * @return
- * - 0 if found;
- * - GIT_ENOTFOUND if not found;
- * - -1 on an unspecified OS related error.
+ * @return 0 if found, GIT_ENOTFOUND if not found, or -1 on other OS error
  */
 extern int git_futils_find_system_file(git_buf *path, const char *filename);
 
+typedef enum {
+	GIT_FUTILS_DIR_SYSTEM = 0,
+	GIT_FUTILS_DIR_GLOBAL = 1,
+	GIT_FUTILS_DIR_XDG    = 2,
+	GIT_FUTILS_DIR__MAX   = 3,
+} git_futils_dir_t;
+
+/**
+ * Get the search path for global/system/xdg files
+ *
+ * @param out pointer to git_buf containing search path
+ * @param which which list of paths to return
+ * @return 0 on success, <0 on failure
+ */
+extern int git_futils_dirs_get(const git_buf **out, git_futils_dir_t which);
+
+/**
+ * Get search path into a preallocated buffer
+ *
+ * @param out String buffer to write into
+ * @param outlen Size of string buffer
+ * @param which Which search path to return
+ * @return 0 on success, GIT_EBUFS if out is too small, <0 on other failure
+ */
+
+extern int git_futils_dirs_get_str(
+	char *out, size_t outlen, git_futils_dir_t which);
+
+/**
+ * Set search paths for global/system/xdg files
+ *
+ * The first occurrence of the magic string "$PATH" in the new value will
+ * be replaced with the old value of the search path.
+ *
+ * @param which Which search path to modify
+ * @param paths New search path (separated by GIT_PATH_LIST_SEPARATOR)
+ * @return 0 on success, <0 on failure (allocation error)
+ */
+extern int git_futils_dirs_set(git_futils_dir_t which, const char *paths);
+
+/**
+ * Release / reset all search paths
+ */
+extern void git_futils_dirs_free(void);
 
 /**
  * Create a "fake" symlink (text file containing the target path).

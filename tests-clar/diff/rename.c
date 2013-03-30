@@ -274,6 +274,7 @@ void test_diff_rename__not_exact_match(void)
 	cl_assert_equal_i(2, exp.file_status[GIT_DELTA_MODIFIED]);
 	cl_assert_equal_i(2, exp.file_status[GIT_DELTA_ADDED]);
 	cl_assert_equal_i(2, exp.file_status[GIT_DELTA_DELETED]);
+	git_diff_list_free(diff);
 
 	/* git diff -M -C \
 	 *          1c068dee5790ef1580cfc4cd670915b48d790084 \
@@ -349,6 +350,39 @@ void test_diff_rename__not_exact_match(void)
 
 	git_tree_free(old_tree);
 	git_tree_free(new_tree);
+}
+
+void test_diff_rename__handles_small_files(void)
+{
+	const char *tree_sha = "2bc7f351d20b53f1c72c16c4b036e491c478c49a";
+	git_index *index;
+	git_tree *tree;
+	git_diff_list *diff;
+	git_diff_options diffopts = GIT_DIFF_OPTIONS_INIT;
+	git_diff_find_options opts = GIT_DIFF_FIND_OPTIONS_INIT;
+
+	cl_git_pass(git_repository_index(&index, g_repo));
+
+	tree = resolve_commit_oid_to_tree(g_repo, tree_sha);
+		
+	cl_git_rewritefile("renames/songof7cities.txt", "single line\n");
+	cl_git_pass(git_index_add_bypath(index, "songof7cities.txt"));
+
+	cl_git_rewritefile("renames/untimely.txt", "untimely\n");
+	cl_git_pass(git_index_add_bypath(index, "untimely.txt"));
+
+	/* Tests that we can invoke find_similar on small files
+	 * and that the GIT_EBUFS (too small) error code is not
+	 * propagated to the caller.
+	 */
+	cl_git_pass(git_diff_tree_to_index(&diff, g_repo, tree, index, &diffopts));
+
+	opts.flags = GIT_DIFF_FIND_RENAMES | GIT_DIFF_FIND_COPIES | GIT_DIFF_FIND_AND_BREAK_REWRITES;
+	cl_git_pass(git_diff_find_similar(diff, &opts));
+
+	git_diff_list_free(diff);
+	git_tree_free(tree);
+	git_index_free(index);
 }
 
 void test_diff_rename__working_directory_changes(void)

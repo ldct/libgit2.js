@@ -10,6 +10,7 @@
 #include "common.h"
 #include "buffer.h"
 #include "tree.h"
+#include "refdb.h"
 
 #include "git2.h"
 
@@ -510,8 +511,8 @@ static int walk_and_search(git_object **out, git_revwalk *walk, regex_t *regex)
 	
 	while (!(error = git_revwalk_next(&oid, walk))) {
 
-		if ((error = git_object_lookup(&obj, git_revwalk_repository(walk), &oid, GIT_OBJ_COMMIT) < 0) &&
-			(error != GIT_ENOTFOUND))
+		error = git_object_lookup(&obj, git_revwalk_repository(walk), &oid, GIT_OBJ_COMMIT);
+		if ((error < 0) && (error != GIT_ENOTFOUND))
 			return -1;
 
 		if (!regexec(regex, git_commit_message((git_commit*)obj), 0, NULL, 0)) {
@@ -634,7 +635,7 @@ static int extract_how_many(int *n, const char *spec, size_t *pos)
 		} while (spec[(*pos)] == kind && kind == '~');
 
 		if (git__isdigit(spec[*pos])) {
-			if ((git__strtol32(&parsed, spec + *pos, &end_ptr, 10) < 0) < 0)
+			if (git__strtol32(&parsed, spec + *pos, &end_ptr, 10) < 0)
 				return GIT_EINVALIDSPEC;
 
 			accumulated += (parsed - 1);
@@ -656,7 +657,7 @@ static int object_from_reference(git_object **object, git_reference *reference)
 	if (git_reference_resolve(&resolved, reference) < 0)
 		return -1;
 
-	error = git_object_lookup(object, reference->owner, git_reference_target(resolved), GIT_OBJ_ANY);
+	error = git_object_lookup(object, reference->db->repo, git_reference_target(resolved), GIT_OBJ_ANY);
 	git_reference_free(resolved);
 
 	return error;

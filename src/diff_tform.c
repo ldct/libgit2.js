@@ -174,16 +174,34 @@ static int find_similar__hashsig_for_file(
 	void **out, const git_diff_file *f, const char *path, void *p)
 {
 	git_hashsig_option_t opt = (git_hashsig_option_t)p;
+	int error = 0;
+
 	GIT_UNUSED(f);
-	return git_hashsig_create_fromfile((git_hashsig **)out, path, opt);
+	error = git_hashsig_create_fromfile((git_hashsig **)out, path, opt);
+	
+	if (error == GIT_EBUFS) {
+		error = 0;
+		giterr_clear();
+	}
+
+	return error;
 }
 
 static int find_similar__hashsig_for_buf(
 	void **out, const git_diff_file *f, const char *buf, size_t len, void *p)
 {
 	git_hashsig_option_t opt = (git_hashsig_option_t)p;
+	int error = 0;
+	
 	GIT_UNUSED(f);
-	return git_hashsig_create((git_hashsig **)out, buf, len, opt);
+	error = git_hashsig_create((git_hashsig **)out, buf, len, opt);
+	
+	if (error == GIT_EBUFS) {
+		error = 0;
+		giterr_clear();
+	}
+
+	return error;
 }
 
 static void find_similar__hashsig_free(void *sig, void *payload)
@@ -376,15 +394,20 @@ static int similarity_calc(
 		git_buf_free(&path);
 	} else { /* compute hashsig from blob buffer */
 		git_blob *blob = NULL;
+		git_off_t blobsize;
 
 		/* TODO: add max size threshold a la diff? */
 
 		if ((error = git_blob_lookup(&blob, diff->repo, &file->oid)) < 0)
 			return error;
 
+		blobsize = git_blob_rawsize(blob);
+		if (!git__is_sizet(blobsize)) /* ? what to do ? */
+			blobsize = (size_t)-1;
+
 		error = opts->metric->buffer_signature(
 			&cache[file_idx], file, git_blob_rawcontent(blob),
-			git_blob_rawsize(blob), opts->metric->payload);
+			(size_t)blobsize, opts->metric->payload);
 
 		git_blob_free(blob);
 	}
@@ -414,6 +437,10 @@ static int similarity_measure(
 		return -1;
 	if (!cache[b_idx] && similarity_calc(diff, opts, b_idx, cache) < 0)
 		return -1;
+	
+	/* some metrics may not wish to process this file (too big / too small) */
+	if (!cache[a_idx] || !cache[b_idx])
+		return 0;
 
 	/* compare signatures */
 	if (opts->metric->similarity(

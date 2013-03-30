@@ -48,9 +48,9 @@ void test_checkout_index__can_create_missing_files(void)
 
 	cl_git_pass(git_checkout_index(g_repo, NULL, &opts));
 
-	test_file_contents("./testrepo/README", "hey there\n");
-	test_file_contents("./testrepo/branch_file.txt", "hi\nbye!\n");
-	test_file_contents("./testrepo/new.txt", "my new file\n");
+	check_file_contents("./testrepo/README", "hey there\n");
+	check_file_contents("./testrepo/branch_file.txt", "hi\nbye!\n");
+	check_file_contents("./testrepo/new.txt", "my new file\n");
 }
 
 void test_checkout_index__can_remove_untracked_files(void)
@@ -88,23 +88,8 @@ void test_checkout_index__honor_the_specified_pathspecs(void)
 	cl_git_pass(git_checkout_index(g_repo, NULL, &opts));
 
 	cl_assert_equal_i(false, git_path_isfile("./testrepo/README"));
-	test_file_contents("./testrepo/branch_file.txt", "hi\nbye!\n");
-	test_file_contents("./testrepo/new.txt", "my new file\n");
-}
-
-static void set_config_entry_to(const char *entry_name, bool value)
-{
-	git_config *cfg;
-
-	cl_git_pass(git_repository_config(&cfg, g_repo));
-	cl_git_pass(git_config_set_bool(cfg, entry_name, value));
-
-	git_config_free(cfg);
-}
-
-static void set_core_autocrlf_to(bool value)
-{
-	set_config_entry_to("core.autocrlf", value);
+	check_file_contents("./testrepo/branch_file.txt", "hi\nbye!\n");
+	check_file_contents("./testrepo/new.txt", "my new file\n");
 }
 
 void test_checkout_index__honor_the_gitattributes_directives(void)
@@ -115,15 +100,15 @@ void test_checkout_index__honor_the_gitattributes_directives(void)
 		"new.txt text eol=lf\n";
 
 	cl_git_mkfile("./testrepo/.gitattributes", attributes);
-	set_core_autocrlf_to(false);
+	cl_repo_set_bool(g_repo, "core.autocrlf", false);
 
 	opts.checkout_strategy = GIT_CHECKOUT_SAFE_CREATE;
 
 	cl_git_pass(git_checkout_index(g_repo, NULL, &opts));
 
-	test_file_contents("./testrepo/README", "hey there\n");
-	test_file_contents("./testrepo/new.txt", "my new file\n");
-	test_file_contents("./testrepo/branch_file.txt", "hi\r\nbye!\r\n");
+	check_file_contents("./testrepo/README", "hey there\n");
+	check_file_contents("./testrepo/new.txt", "my new file\n");
+	check_file_contents("./testrepo/branch_file.txt", "hi\r\nbye!\r\n");
 }
 
 void test_checkout_index__honor_coreautocrlf_setting_set_to_true(void)
@@ -133,33 +118,28 @@ void test_checkout_index__honor_coreautocrlf_setting_set_to_true(void)
 	const char *expected_readme_text = "hey there\r\n";
 
 	cl_git_pass(p_unlink("./testrepo/.gitattributes"));
-	set_core_autocrlf_to(true);
+	cl_repo_set_bool(g_repo, "core.autocrlf", true);
 
 	opts.checkout_strategy = GIT_CHECKOUT_SAFE_CREATE;
 
 	cl_git_pass(git_checkout_index(g_repo, NULL, &opts));
 
-	test_file_contents("./testrepo/README", expected_readme_text);
+	check_file_contents("./testrepo/README", expected_readme_text);
 #endif
-}
-
-static void set_repo_symlink_handling_cap_to(bool value)
-{
-	set_config_entry_to("core.symlinks", value);
 }
 
 void test_checkout_index__honor_coresymlinks_setting_set_to_true(void)
 {
 	git_checkout_opts opts = GIT_CHECKOUT_OPTS_INIT;
 
-	set_repo_symlink_handling_cap_to(true);
+	cl_repo_set_bool(g_repo, "core.symlinks", true);
 
 	opts.checkout_strategy = GIT_CHECKOUT_SAFE_CREATE;
 
 	cl_git_pass(git_checkout_index(g_repo, NULL, &opts));
 
 #ifdef GIT_WIN32
-	test_file_contents("./testrepo/link_to_new.txt", "new.txt");
+	check_file_contents("./testrepo/link_to_new.txt", "new.txt");
 #else
 	{
 		char link_data[1024];
@@ -169,7 +149,7 @@ void test_checkout_index__honor_coresymlinks_setting_set_to_true(void)
 		link_data[link_size] = '\0';
 		cl_assert_equal_i(link_size, strlen("new.txt"));
 		cl_assert_equal_s(link_data, "new.txt");
-		test_file_contents("./testrepo/link_to_new.txt", "my new file\n");
+		check_file_contents("./testrepo/link_to_new.txt", "my new file\n");
 	}
 #endif
 }
@@ -178,13 +158,13 @@ void test_checkout_index__honor_coresymlinks_setting_set_to_false(void)
 {
 	git_checkout_opts opts = GIT_CHECKOUT_OPTS_INIT;
 
-	set_repo_symlink_handling_cap_to(false);
+	cl_repo_set_bool(g_repo, "core.symlinks", false);
 
 	opts.checkout_strategy = GIT_CHECKOUT_SAFE_CREATE;
 
 	cl_git_pass(git_checkout_index(g_repo, NULL, &opts));
 
-	test_file_contents("./testrepo/link_to_new.txt", "new.txt");
+	check_file_contents("./testrepo/link_to_new.txt", "new.txt");
 }
 
 void test_checkout_index__donot_overwrite_modified_file_by_default(void)
@@ -200,7 +180,7 @@ void test_checkout_index__donot_overwrite_modified_file_by_default(void)
 
 	cl_git_pass(git_checkout_index(g_repo, NULL, &opts));
 
-	test_file_contents("./testrepo/new.txt", "This isn't what's stored!");
+	check_file_contents("./testrepo/new.txt", "This isn't what's stored!");
 }
 
 void test_checkout_index__can_overwrite_modified_file(void)
@@ -213,7 +193,7 @@ void test_checkout_index__can_overwrite_modified_file(void)
 
 	cl_git_pass(git_checkout_index(g_repo, NULL, &opts));
 
-	test_file_contents("./testrepo/new.txt", "my new file\n");
+	check_file_contents("./testrepo/new.txt", "my new file\n");
 }
 
 void test_checkout_index__options_disable_filters(void)
@@ -227,14 +207,14 @@ void test_checkout_index__options_disable_filters(void)
 
 	cl_git_pass(git_checkout_index(g_repo, NULL, &opts));
 
-	test_file_contents("./testrepo/new.txt", "my new file\r\n");
+	check_file_contents("./testrepo/new.txt", "my new file\r\n");
 
 	p_unlink("./testrepo/new.txt");
 
 	opts.disable_filters = true;
 	cl_git_pass(git_checkout_index(g_repo, NULL, &opts));
 
-	test_file_contents("./testrepo/new.txt", "my new file\n");
+	check_file_contents("./testrepo/new.txt", "my new file\n");
 }
 
 void test_checkout_index__options_dir_modes(void)
@@ -294,7 +274,7 @@ void test_checkout_index__options_open_flags(void)
 	opts.checkout_strategy = GIT_CHECKOUT_FORCE;
 	cl_git_pass(git_checkout_index(g_repo, NULL, &opts));
 
-	test_file_contents("./testrepo/new.txt", "hi\nmy new file\n");
+	check_file_contents("./testrepo/new.txt", "hi\nmy new file\n");
 }
 
 struct notify_data {
@@ -372,7 +352,7 @@ void test_checkout_index__wont_notify_of_expected_line_ending_changes(void)
 	git_checkout_opts opts = GIT_CHECKOUT_OPTS_INIT;
 
 	cl_git_pass(p_unlink("./testrepo/.gitattributes"));
-	set_core_autocrlf_to(true);
+	cl_repo_set_bool(g_repo, "core.autocrlf", true);
 
 	cl_git_mkfile("./testrepo/new.txt", "my new file\r\n");
 
@@ -489,9 +469,9 @@ void test_checkout_index__can_update_prefixed_files(void)
 	/* remove untracked will remove the .gitattributes file before the blobs
 	 * were created, so they will have had crlf filtering applied on Windows
 	 */
-	test_file_contents_nocr("./testrepo/README", "hey there\n");
-	test_file_contents_nocr("./testrepo/branch_file.txt", "hi\nbye!\n");
-	test_file_contents_nocr("./testrepo/new.txt", "my new file\n");
+	check_file_contents_nocr("./testrepo/README", "hey there\n");
+	check_file_contents_nocr("./testrepo/branch_file.txt", "hi\nbye!\n");
+	check_file_contents_nocr("./testrepo/new.txt", "my new file\n");
 
 	cl_assert(!git_path_exists("testrepo/READ"));
 	cl_assert(!git_path_exists("testrepo/README.after"));
@@ -507,4 +487,21 @@ void test_checkout_index__can_checkout_a_newly_initialized_repository(void)
 	cl_git_remove_placeholders(git_repository_path(g_repo), "dummy-marker.txt");
 
 	cl_git_pass(git_checkout_index(g_repo, NULL, NULL));
+}
+
+void test_checkout_index__issue_1397(void)
+{
+	git_checkout_opts opts = GIT_CHECKOUT_OPTS_INIT;
+
+	test_checkout_index__cleanup();
+
+	g_repo = cl_git_sandbox_init("issue_1397");
+
+	cl_repo_set_bool(g_repo, "core.autocrlf", true);
+
+	opts.checkout_strategy = GIT_CHECKOUT_FORCE;
+
+	cl_git_pass(git_checkout_index(g_repo, NULL, &opts));
+
+	check_file_contents("./issue_1397/crlf_file.txt", "first line\r\nsecond line\r\nboth with crlf");
 }

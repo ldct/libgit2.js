@@ -12,6 +12,7 @@
 #include <ctype.h>
 #include "fileops.h"
 #include "filter.h"
+#include "buf_text.h"
 
 static int read_next_int(const char **str, int *value)
 {
@@ -202,7 +203,7 @@ static void setup_xdiff_options(
 	memset(param, 0, sizeof(xpparam_t));
 
 	cfg->ctxlen =
-		(!opts || !opts->context_lines) ? 3 : opts->context_lines;
+		(!opts) ? 3 : opts->context_lines;
 	cfg->interhunkctxlen =
 		(!opts) ? 0 : opts->interhunk_lines;
 
@@ -299,7 +300,12 @@ static int get_workdir_sm_content(
 
 	if ((error = git_submodule_lookup(&sm, ctxt->repo, file->path)) < 0 ||
 		(error = git_submodule_status(&sm_status, sm)) < 0)
+	{
+		/* GIT_EEXISTS means a "submodule" that has not been git added */
+		if (error == GIT_EEXISTS)
+			error = 0;
 		return error;
+	}
 
 	/* update OID if we didn't have it previously */
 	if ((file->flags & GIT_DIFF_FLAG_VALID_OID) == 0) {
@@ -328,6 +334,33 @@ static int get_workdir_sm_content(
 	file->flags |= GIT_DIFF_FLAG__FREE_DATA;
 
 	return 0;
+}
+
+static int get_filtered(
+	git_map *map, git_file fd, git_diff_file *file, git_vector *filters)
+{
+	int error;
+	git_buf raw = GIT_BUF_INIT, filtered = GIT_BUF_INIT;
+
+	if ((error = git_futils_readbuffer_fd(&raw, fd, (size_t)file->size)) < 0)
+		return error;
+
+	if (!filters->length)
+		git_buf_swap(&filtered, &raw);
+	else
+		error = git_filters_apply(&filtered, &raw, filters);
+
+	if (!error) {
+		map->len  = git_buf_len(&filtered);
+		map->data = git_buf_detach(&filtered);
+
+		file->flags |= GIT_DIFF_FLAG__FREE_DATA;
+	}
+
+	git_buf_free(&raw);
+	git_buf_free(&filtered);
+
+	return error;
 }
 
 static int get_workdir_content(
@@ -363,7 +396,7 @@ static int get_workdir_content(
 		map->data = git__malloc(alloc_len);
 		GITERR_CHECK_ALLOC(map->data);
 
-		read_len = p_readlink(path.ptr, map->data, (int)alloc_len);
+		read_len = p_readlink(path.ptr, map->data, alloc_len);
 		if (read_len < 0) {
 			giterr_set(GITERR_OS, "Failed to read symlink '%s'", file->path);
 			error = -1;
@@ -381,8 +414,8 @@ static int get_workdir_content(
 			goto cleanup;
 		}
 
-		if (!file->size)
-			file->size = git_futils_filesize(fd);
+		if (!file->size && !(file->size = git_futils_filesize(fd)))
+			goto close_and_cleanup;
 
 		if ((error = diff_delta_is_binary_by_size(ctxt, delta, file)) < 0 ||
 			(delta->flags & GIT_DIFF_FLAG_BINARY) != 0)
@@ -394,26 +427,12 @@ static int get_workdir_content(
 			goto close_and_cleanup;
 
 		if (error == 0) { /* note: git_filters_load returns filter count */
-			if (!file->size)
-				goto close_and_cleanup;
-
 			error = git_futils_mmap_ro(map, fd, 0, (size_t)file->size);
-			file->flags |= GIT_DIFF_FLAG__UNMAP_DATA;
-		} else {
-			git_buf raw = GIT_BUF_INIT, filtered = GIT_BUF_INIT;
-
-			if (!(error = git_futils_readbuffer_fd(&raw, fd, (size_t)file->size)) &&
-				!(error = git_filters_apply(&filtered, &raw, &filters)))
-			{
-				map->len  = git_buf_len(&filtered);
-				map->data = git_buf_detach(&filtered);
-
-				file->flags |= GIT_DIFF_FLAG__FREE_DATA;
-			}
-
-			git_buf_free(&raw);
-			git_buf_free(&filtered);
+			if (!error)
+				file->flags |= GIT_DIFF_FLAG__UNMAP_DATA;
 		}
+		if (error != 0)
+			error = get_filtered(map, fd, file, &filters);
 
 close_and_cleanup:
 		git_filters_free(&filters);
@@ -1507,6 +1526,10 @@ int git_diff_get_patch(
 		return 0;
 
 	if (git_diff_delta__should_skip(ctxt.opts, delta))
+		return 0;
+
+	/* Don't load the patch if the user doesn't want it */
+	if (!patch_ptr)
 		return 0;
 
 	patch = diff_patch_alloc(&ctxt, delta);
