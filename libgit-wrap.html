@@ -75,5 +75,10 @@
       Module.setStatus('Downloading...');
     </script> 
   <script src="build/libgit.js">
+  </script>
+  <script type="text/javascript">
+    var ls = Module.cwrap("ls", 'number', ['string']);
+    var general = Module.cwrap("general", 'number', []);
+  </script>
   </body>
 </html>
