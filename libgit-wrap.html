@@ -20,10 +20,11 @@
     <hr>
     <script type='text/javascript'>
       var Module = {
+        std_out: [],
         preRun: [],
         postRun: [],
         print: function(text) {
-          console.log(text);
+          Module.std_out.push(text);
         },
         printErr: function(text) {
           console.log("error: ", text);
@@ -55,11 +56,38 @@
     </script> 
   <script src="build/libgit.js">
   </script>
+
   <script type="text/javascript">
-    var ls = Module.cwrap("ls", 'number', ['string']);
     var general = Module.cwrap("general", 'number', []);
-    var show_index = Module.cwrap("show_index_str", 'number', ['string']);
-    var list_refs = Module.cwrap("list_refs_str", 'number', ['string']);
+
+    function ls(s) {
+      Module.std_out = [];
+      Module.ccall("ls", 'number', ['string'], [s]);
+      var out = [];
+      splitted = Module.std_out[0].split(" ")
+      for (i in splitted) {
+        f = splitted[i];
+        if ((f.length > 0) & (f !== ".") & (f != "..")) {
+          out.push(f);
+        }
+      }
+      return out;
+    }
+    function list_refs(s) {
+      Module.std_out = [];
+      Module.ccall("list_refs_str", 'number', ['string'], [s]);
+      out = [];
+      for (i in Module.std_out) {
+        pair = Module.std_out[i].split(" ");
+        out.push({'sha': pair[0], 'ref': pair[1]});
+      }
+      return out;
+    }
+    function show_index(s) {
+      Module.std_out = [];
+      Module.ccall("show_index_str", 'number', ['string'], [s]);
+      return Module.std_out;
+    }
   </script>
   </body>
 </html>
