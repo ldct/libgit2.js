@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <git2.h>
 
-int listrefs(git_repository* repo) {
+int list_refs(git_repository* repo) {
   git_strarray ref_list;
   git_reference_list(&ref_list, repo, GIT_REF_LISTALL);
 
@@ -38,5 +38,5 @@ int list_refs_str(char* s) {
   git_repository* repo;
 
   git_repository_open(&repo, s);
-  return listrefs(repo);
+  return list_refs(repo);
 }

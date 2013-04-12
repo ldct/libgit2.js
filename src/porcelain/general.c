@@ -37,15 +37,15 @@ int commit(char* message) {
   
   if (head_missing) {
     git_commit_create_v(
-    &commit_oid,
-    repo,
-    "HEAD",
-    signature,
-    signature,
-    NULL,
-    message,
-    tree,
-    0);
+      &commit_oid,
+      repo,
+      "HEAD",
+      signature,
+      signature,
+      NULL,
+      message,
+      tree,
+      0);
   } else {
     git_commit_lookup(&head_commit, repo, &head_oid);
     git_commit_create_v(
@@ -75,11 +75,11 @@ int general() {
   
   git_repository_init(&repo, "zit", 0);
 
-  touch("zit/readme", "Zit \n --- git for zombieis\n");
+  touch("zit/readme", "Zit\n---\ngit for zombieis\n\nWelcome to the Zit project!");
   stage("readme");
   commit("Initial commit\n");
 
-  touch("zit/TODO", "- Make project logo \n- Watch Friends\n");
+  touch("zit/TODO", "-Make project logo\n-Watch Friends\n");
   stage("TODO");
   commit("todo\n");
   

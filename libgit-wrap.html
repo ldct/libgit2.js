@@ -59,16 +59,19 @@
 
   <script type="text/javascript">
     var general = Module.cwrap("general", 'number', []);
+    var touch = Module.cwrap("touch", 'number', ['string', 'string']);
+    var stage = Module.cwrap("stage", 'number', ['string']);
+    var commit = Module.cwrap("commit", 'number', ['string']);
 
     function ls(s) {
       Module.std_out = [];
       Module.ccall("ls", 'number', ['string'], [s]);
-      var out = [];
+      var ret = [];
       splitted = Module.std_out[0].split(" ")
       for (i in splitted) {
         f = splitted[i];
         if ((f.length > 0) & (f !== ".") & (f != "..")) {
-          out.push(f);
+          ret.push(f);
         }
       }
       return out;
@@ -76,17 +79,22 @@
     function list_refs(s) {
       Module.std_out = [];
       Module.ccall("list_refs_str", 'number', ['string'], [s]);
-      out = [];
+      var ret = [];
       for (i in Module.std_out) {
         pair = Module.std_out[i].split(" ");
-        out.push({'sha': pair[0], 'ref': pair[1]});
+        ret.push({'sha': pair[0], 'ref': pair[1]});
       }
-      return out;
+      return ret;
     }
     function show_index(s) {
       Module.std_out = [];
       Module.ccall("show_index_str", 'number', ['string'], [s]);
-      return Module.std_out;
+      return Module.std_out.slice();
+    }
+    function revwalk_from_head(s) {
+      Module.std_out = [];
+      Module.ccall("revwalk_from_head", 'number', ['string'], [s]);
+      return Module.std_out.slice();
     }
   </script>
   </body>
