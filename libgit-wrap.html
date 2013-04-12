@@ -74,7 +74,7 @@
           ret.push(f);
         }
       }
-      return out;
+      return ret;
     }
     function list_refs(s) {
       Module.std_out = [];
@@ -93,7 +93,7 @@
     }
     function revwalk_from_head(s) {
       Module.std_out = [];
-      Module.ccall("revwalk_from_head", 'number', ['string'], [s]);
+      Module.ccall("revwalk_from_head_str", 'number', ['string'], [s]);
       return Module.std_out.slice();
     }
   </script>
