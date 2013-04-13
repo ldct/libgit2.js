@@ -16,10 +16,11 @@ int revwalk_from_head(git_repository* repo) {
   while ((git_revwalk_next(&w_oid, walk)) == 0) {
     git_oid_fmt(out, &w_oid);
     git_commit_lookup(&w_commit, repo, &w_oid);
-    printf("%s %s", out, git_commit_message(w_commit));
+    printf("%s%s%s", out, git_commit_message(w_commit), out);
     git_commit_free(w_commit);
   }
   git_revwalk_free(walk);
+  printf("\n");
 
   return 0;
 }

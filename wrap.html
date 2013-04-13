@@ -58,12 +58,17 @@
   </script>
 
   <script type="text/javascript">
+    var cd = Module.cwrap("cd", 'number', ['string']);
+
     var general = Module.cwrap("general", 'number', []);
     var touch = Module.cwrap("touch", 'number', ['string', 'string']);
     var stage = Module.cwrap("stage", 'number', ['string']);
     var commit = Module.cwrap("commit", 'number', ['string']);
 
     function ls(s) {
+      if (typeof(s) === 'undefined') {
+        s = ".";
+      }
       Module.std_out = [];
       Module.ccall("ls", 'number', ['string'], [s]);
       var ret = [];
@@ -94,7 +99,17 @@
     function revwalk_from_head(s) {
       Module.std_out = [];
       Module.ccall("revwalk_from_head_str", 'number', ['string'], [s]);
-      return Module.std_out.slice();
+      s = Module.std_out.join('\n');
+      ret = [];
+      while (s.length > 0) {
+        var sha = s.slice(0,40);
+        s = s.split(sha);
+        s.shift();
+        ret.push({'sha': sha, 'message': s[0]});
+        s.shift();
+        s = s.join(sha);
+      }
+      return ret;
     }
   </script>
   </body>

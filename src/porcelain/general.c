@@ -3,11 +3,11 @@
 
 #include "libcore.h"
 
-git_repository* repo;
-
 int stage(char* filename) {
+  git_repository* repo;
   git_index* index;
 
+  git_repository_open(&repo, ".");
   git_repository_index(&index, repo);
   git_index_add_bypath(index, filename);
   git_index_write(index);
@@ -17,6 +17,7 @@ int stage(char* filename) {
 }
 
 int commit(char* message) {
+  git_repository* repo;
 
   git_index *index;
   git_oid tree_oid;
@@ -27,6 +28,7 @@ int commit(char* message) {
   git_signature *signature;
   int head_missing;
 
+  git_repository_open(&repo, ".");
   git_repository_index(&index, repo);
   git_index_write_tree(&tree_oid, index);    
   git_tree_lookup(&tree, repo, &tree_oid);
@@ -72,14 +74,15 @@ int commit(char* message) {
 }
 
 int general() {
-  
+  git_repository* repo;
   git_repository_init(&repo, "zit", 0);
+  cd("zit");
 
-  touch("zit/readme", "Zit\n---\ngit for zombieis\n\nWelcome to the Zit project!");
+  touch("readme", "Zit\n---\ngit for zombieis\n\nWelcome to the Zit project!");
   stage("readme");
   commit("Initial commit\n");
 
-  touch("zit/TODO", "-Make project logo\n-Watch Friends\n");
+  touch("TODO", "-Make project logo\n-Watch Friends\n");
   stage("TODO");
   commit("todo\n");
   
