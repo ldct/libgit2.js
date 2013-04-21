@@ -8,6 +8,22 @@
       .emscripten { padding-right: 0; margin-left: auto; margin-right: auto; display: block; }
       textarea.emscripten { font-family: monospace; width: 80%; }
       div.emscripten { text-align: center; }
+
+      #graph {
+        position: absolute;
+      }
+
+      #container {
+        position: absolute;
+        left: 120px;
+        white-space: nowrap; /*pre*/
+      }
+
+      .log {
+        /*border: 1px solid blue;*/
+        height: 25px;
+      }
+
     </style>
   </head>
   <body>
@@ -18,6 +34,7 @@
     </div>
     <textarea class="emscripten" id="output" rows="8"></textarea>
     <hr>
+    <div id="container"></div>
     <script type='text/javascript'>
       var Module = {
         std_out: [],
@@ -58,6 +75,199 @@
   </script>
 
   <script type="text/javascript">
+
+  function readTimeline(timeline) {
+    window.t = timeline;
+    var i, il, v;
+    var hashes = {};
+    var targetRows = Math.min(200, timeline.length);
+
+    function compare(a, b) {
+      return b.date - a.date;
+    }
+    timeline.sort(compare);
+
+    // create hashes
+    for (i = 0; i < timeline.length; i++) {
+      v = timeline[i];
+      v.children = [];
+      hashes[v.hash] = v;
+    }
+    
+    var parents, hash;
+
+    // create reverse references
+    for (i=0;i<il;i++) {
+      v = timeline[i];
+      parents = v.parents;
+      for (j=0;j<parents.length;j++) {
+        hash = parents[j];
+        hashes[hash].children.push(v);
+      }
+    }
+
+    var canvas = document.createElement('canvas');
+    canvas.id = 'graph';
+    canvas.width = 120;
+    canvas.height = targetRows * 25;
+    document.body.appendChild(canvas);
+
+    // Graphing strategies
+    // 1. pending parents first (gitk, jetbrains, git log --graph)
+    // 2. Current node first, pending parents, remaining parents (sourcetree, gitx)
+    // 3. Current parent, remaining parents, pending parents. (soucetree)
+    // 4. force layout (github)
+
+    ctx = canvas.getContext('2d');
+    ctx.lineWidth = 2.5;
+    ctx.fillStyle = 'violet'; // lime
+
+    var colors = ['black', '#ee8', 'red', 'green', 'blue'];
+
+    var e;
+    var pendingParents = [];
+    var nodeTrack = 0;
+    var p;
+    var LINK_PORTION = 0.28;
+
+    console.time('draw');
+
+    var nodeTracks = [];
+
+    for (i=0;i<targetRows;i++) {
+      v = timeline[i];
+      e = document.createElement('div');
+      e.className = 'log';
+      e.innerHTML =  i + '. ' + v.message + " - " + new Date(v.date * 1000).toDateString() + ' - ' + v.hash + ' - ' + v.author;
+      container.appendChild(e);
+    }
+
+    for (i=0;i<targetRows;i++) {
+      v = timeline[i];
+
+      var pendingParents2 = [];
+      for (j=0;j<v.parents.length;j++) {
+        pendingParents2.push({targetHash: v.parents[j],
+          row: i, length: 0, color: colors[~~(Math.random()*colors.length)]});
+      }
+
+      nodeTrack = null;
+      var merges = 0;
+      for (j=0;j<pendingParents.length;j++) {
+        p = pendingParents[j];
+
+
+        var middleTrack;
+        var endTrack;
+        var first;
+        var tmp;
+
+        middleTrack = p.track;
+
+        if (p.targetHash==v.hash) {
+          first = nodeTrack===null;
+          if (first) nodeTrack = j;
+
+          endTrack = nodeTrack;
+
+          if (first && pendingParents2.length) {
+
+            tmp= pendingParents2.shift()
+            tmp.track = j;
+            tmp.color = pendingParents[j].color;
+            pendingParents[j] = tmp;
+
+          } else {
+
+            if (p.length==0 && p.prevTrack!=p.track) {
+              middleTrack = p.prevTrack;
+            }
+            pendingParents.splice(j, 1);
+            merges++;
+            j--;
+          }
+
+        } else {
+          p.track -= merges;
+          endTrack = p.track;
+          p.length++;
+        }
+
+
+        // Draw connecting lines
+        ctx.strokeStyle = p.color;
+        ctx.beginPath();
+        ctx.moveTo(getTrackX(p.prevTrack), getRowY(p.row));
+
+        // if (middleTrack!==null)
+        ctx.lineTo(getTrackX(middleTrack), getRowY(p.row + LINK_PORTION));
+        ctx.lineTo(getTrackX(endTrack), getRowY(i-LINK_PORTION));
+        ctx.lineTo(getTrackX(endTrack), getRowY(i));
+
+        ctx.stroke();
+
+        p.row = i;
+
+      }
+      if (nodeTrack===null) {
+        nodeTrack = 0;
+      }
+
+      // TODO
+      // Bezier
+      // Keep graph in memory?
+      // Mouse over interactivity
+
+      for (j=0;j<pendingParents2.length;j++) {
+        p = pendingParents2[j];
+
+        p.track = pendingParents.length;
+        pendingParents.push(p);
+      }
+
+      ctx.stroke();
+
+      // Draw 1/4 -> 1/3 portions of lines
+      for (j=0;j<pendingParents.length;j++) {
+        p = pendingParents[j];
+
+        // Draw connecting lines
+        if (p.length==0) {
+          p.prevTrack = nodeTrack;
+        } else {
+          p.prevTrack = p.track;
+        }
+
+      }
+
+      nodeTracks.push(nodeTrack);
+    }
+
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = '#000';
+    for (i=0;i<targetRows;i++) {
+      // Draw nodes
+
+      nodeTrack = nodeTracks[i];
+
+      ctx.beginPath();
+      ctx.arc(getTrackX(nodeTrack), getRowY(i), 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    console.timeEnd('draw');
+
+    function getTrackX(t) {
+      return ~~(t * 16 + 8)+0.5;
+    }
+
+    function getRowY(t) {
+      return t * 25 + 10;
+    }
+
+  }
+
     var cd = Module.cwrap("cd", 'number', ['string']);
 
     var general = Module.cwrap("general", 'number', []);
@@ -105,7 +315,15 @@
         var sha = s.slice(0,40);
         s = s.split(sha);
         s.shift();
-        ret.push({'sha': sha, 'message': s[0]});
+        var m = s[0].split(" ");
+        var p_count = m.shift();
+        var parents = [];
+
+        for (var i = 0; i < p_count; i++) {
+          parents.push(m.shift());
+        }
+
+        ret.push({'sha': sha, 'message': m.join(" "), 'parents': parents});
         s.shift();
         s = s.join(sha);
       }
