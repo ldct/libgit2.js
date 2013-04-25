@@ -307,25 +307,25 @@
       return Module.std_out.slice();
     }
     function revwalk_from_head(s) {
+      function hex2a(hex) {
+          var str = '';
+          for (var i = 0; i < hex.length; i += 2)
+              str += String.fromCharCode(parseInt(hex.substr(i, 2), 16));
+          return str;
+      }
       Module.std_out = [];
       Module.ccall("revwalk_from_head_str", 'number', ['string'], [s]);
-      s = Module.std_out.join('\n');
-      ret = [];
-      while (s.length > 0) {
-        var sha = s.slice(0,40);
-        s = s.split(sha);
-        s.shift();
-        var m = s[0].split(" ");
-        var p_count = m.shift();
+      var ret = [];
+      for (var i in Module.std_out) {
+        commit = Module.std_out[i].split(" ");
+        var sha = commit.shift();
+        var p_count = commit.shift();
         var parents = [];
-
         for (var i = 0; i < p_count; i++) {
-          parents.push(m.shift());
+          parents.push(commit.shift());
         }
-
-        ret.push({'sha': sha, 'message': m.join(" "), 'parents': parents});
-        s.shift();
-        s = s.join(sha);
+        var message = commit.shift();
+        ret.push({sha: sha, parents: parents, message: hex2a(message)});
       }
       return ret;
     }

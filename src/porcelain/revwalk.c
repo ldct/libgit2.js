@@ -20,18 +20,19 @@ int revwalk_from_head(git_repository* repo) {
     git_oid_fmt(w_oid_str, &w_oid);
     git_commit_lookup(&w_commit, repo, &w_oid);
     int parent_count = git_commit_parentcount(w_commit);
-    printf("%s", w_oid_str);
-    printf("%i ", parent_count);
+    printf("%s %i ", w_oid_str, parent_count);
     for (int i = 0; i < parent_count; i++) {
       git_oid_fmt(p_oid_str, git_commit_parent_id(w_commit, i));
       printf("%s ", p_oid_str);
     }
-    printf("%s", git_commit_message(w_commit));
-    printf("%s", w_oid_str);
+    const char* msg = git_commit_message(w_commit);
+    for (int i = 0; msg[i] != 0; i++) {
+      printf("%02x", (unsigned char)msg[i]);
+    }
+    printf("\n");
     git_commit_free(w_commit);
   }
   git_revwalk_free(walk);
-  printf("\n");
 
   return 0;
 }
