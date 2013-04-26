@@ -1,0 +1,28 @@
+      .emscripten { padding-right: 0; margin-left: auto; margin-right: auto; display: block; }
+      textarea.emscripten { font-family: monospace; width: 80%; }
+      div.emscripten { text-align: center; }
+
+      #graph {
+        position: absolute;
+      }
+
+      #commit_graph_container {
+        left: 120px;
+        white-space: nowrap; /*pre*/
+      }
+
+      .log {
+        /*border: 1px solid blue;*/
+        height: 25px;
+        margin-left: 50px;
+      }
+
+      .sha {
+        font-family: monospace;
+        font-size: 0.8em;
+        color: gray;
+      }
+
+      #.directory_listing {
+        font-family: monospace;
+      }
