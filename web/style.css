@@ -23,6 +23,33 @@
         color: gray;
       }
 
-      #.directory_listing {
+      .directory_listing {
         font-family: monospace;
+      }
+
+      .filename_entry {
+        margin: 0.5em;
+      }
+
+      .dirname_entry {
+        margin: 0.5em;
+        font-weight: bold;
+      }
+
+      .filename_entry:hover {
+        cursor: pointer;
+      }
+
+      .dirname_entry:hover {
+        cursor: pointer;
+      }
+
+      #text_editor {
+        width: 100%; 
+        margin-top: 0.5em;
+        border-color: gray;
+      }
+
+      #save:hover {
+        cursor: pointer;
       }

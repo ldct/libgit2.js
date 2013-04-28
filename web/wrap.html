@@ -12,10 +12,11 @@
       <progress value="0" max="100" id="progress" hidden=1></progress>  
     </div>
     <hr>
-    <div id="directory_listing"></div>
-    <hr>
     <div id="commit_graph_container"></div>
     <hr>
+    <div id="directory_listing"></div>
+    <textarea id="text_editor" rows=10></textarea>
+    <span id="save">save</span>
     <script type='text/javascript'>
       var Module = {
         std_out: [],
@@ -52,7 +53,7 @@
       };
       Module.setStatus('Downloading...');
     </script> 
-  <script src="../build/libgit.js"></script>
+  <script src="libgit.js"></script>
   <script src="jquery.min.js"></script>
   <script src="timeline.js"></script>
   <script src="functions.js"></script>

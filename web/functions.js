@@ -7,7 +7,9 @@ function cd(dir) {
 }
 
 function touch(file, content) {
-  return Module.ccall("touch", 'number', ['string', 'string'], [file, content]);
+  ret = Module.ccall("touch", 'number', ['string', 'string'], [file, content]);
+  show_dir(ls("."));
+  return ret;
 }
 
 var stage = Module.cwrap("stage", 'number', ['string']);
@@ -18,28 +20,41 @@ function commit(message) {
   return ret;
 }
 
-function ls(s) {
-  if (typeof(s) === 'undefined') {
-    s = ".";
+function ls(dir) {
+  if (typeof(dir) === 'undefined') {
+    dir = ".";
   }
   Module.std_out = [];
-  Module.ccall("ls", 'number', ['string'], [s]);
-  var ret = [];
-  splitted = Module.std_out[0].split(" ")
-  for (i in splitted) {
-    f = splitted[i];
-    if ((f.length > 0) & (f !== ".") & (f != "..")) {
-      ret.push(f);
+  Module.ccall("ls", 'number', ['string'], [dir]);
+  var files = [];
+  var dirs = [];
+  for (var i in Module.std_out) {
+    f = Module.std_out[i];
+    if ((f == "/.") || (f.length == 0)) {
+      continue;
+    }
+    if (f[0] == "/") {
+      dirs.push(f.substr(1));
+    } else {
+      files.push(f);
     }
   }
-  return ret;
+  return {'files': files, 'dirs': dirs};
 }
 
-function show_dir(dir) {
+function show_dir(listing) {
   $("#directory_listing").empty();
-  for (var i in dir) {
-    $("#directory_listing").append($("<span>" + dir[i] + " </span>"));
+  for (var i in listing.dirs) {
+    var entry = $("<span>", {'text': listing.dirs[i], 'class': "dirname_entry"});
+    entry.click(function() {cd(this.innerText)});
+    $("#directory_listing").append(entry);
   }
+  for (var i in listing.files) {
+    var entry = $("<span>", {'text': listing.files[i], 'class': "filename_entry"});
+    entry.click(function() {load_text(this.innerText)});
+    $("#directory_listing").append(entry);
+  }
+
 }
 function list_refs(s) {
   Module.std_out = [];
@@ -51,6 +66,18 @@ function list_refs(s) {
   }
   return ret;
 }
+
+function cat(filename) {
+  Module.std_out = [];
+  Module.ccall("cat", 'number', ['string'], [filename]);
+  return Module.std_out.join("\n");
+}
+
+function load_text(filename) {
+  current_file = filename;
+  $("#text_editor").val(cat(filename));
+}
+
 function show_index(s) {
   Module.std_out = [];
   Module.ccall("show_index_str", 'number', ['string'], [s]);
@@ -79,3 +106,11 @@ function revwalk_from_head(s) {
   }
   return ret;
 }
+
+$("#save").click(function() {
+  if (typeof(current_file) == "undefined") {
+    return;
+  } else {
+    touch(current_file, $("#text_editor").val());
+  }
+});

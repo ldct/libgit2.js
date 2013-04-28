@@ -1,0 +1,1 @@
+cp -avr . ~/appspot-grading/static/git
