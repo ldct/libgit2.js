@@ -38,10 +38,8 @@ GIT_BEGIN_DECL
  * validated for consistency. It should also not conflict with
  * an already existing branch name.
  *
- * @param target Object to which this branch should point. This object
- * must belong to the given `repo` and can either be a git_commit or a
- * git_tag. When a git_tag is being passed, it should be dereferencable
- * to a git_commit which oid will be used as the target of the branch.
+ * @param target Commit to which this branch should point. This object
+ * must belong to the given `repo`.
  *
  * @param force Overwrite existing branch.
  *
@@ -173,9 +171,21 @@ GIT_EXTERN(int) git_branch_name(const char **out,
  * @return 0 on success; GIT_ENOTFOUND when no remote tracking
  * reference exists, otherwise an error code.
  */
-GIT_EXTERN(int) git_branch_tracking(
+GIT_EXTERN(int) git_branch_upstream(
 	git_reference **out,
 	git_reference *branch);
+
+/**
+ * Set the upstream configuration for a given local branch
+ *
+ * @param branch the branch to configure
+ *
+ * @param upstream_name remote-tracking or local branch to set as
+ * upstream. Pass NULL to unset.
+ *
+ * @return 0 or an error code
+ */
+GIT_EXTERN(int) git_branch_set_upstream(git_reference *branch, const char *upstream_name);
 
 /**
  * Return the name of the reference supporting the remote tracking branch,
@@ -195,7 +205,7 @@ GIT_EXTERN(int) git_branch_tracking(
  *     including the trailing NUL byte; GIT_ENOTFOUND when no remote tracking
  *     reference exists, otherwise an error code.
  */
-GIT_EXTERN(int) git_branch_tracking_name(
+GIT_EXTERN(int) git_branch_upstream_name(
 	char *tracking_branch_name_out,
 	size_t buffer_size,
 	git_repository *repo,

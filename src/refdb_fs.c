@@ -11,14 +11,14 @@
 #include "fileops.h"
 #include "pack.h"
 #include "reflog.h"
-#include "config.h"
 #include "refdb.h"
 #include "refdb_fs.h"
 
 #include <git2/tag.h>
 #include <git2/object.h>
 #include <git2/refdb.h>
-#include <git2/refdb_backend.h>
+#include <git2/sys/refdb_backend.h>
+#include <git2/sys/refs.h>
 
 GIT__USE_STRMAP;
 
@@ -42,7 +42,6 @@ typedef struct refdb_fs_backend {
 
 	git_repository *repo;
 	const char *path;
-	git_refdb *refdb;
 
 	git_refcache refcache;
 } refdb_fs_backend;
@@ -62,7 +61,7 @@ static int reference_read(
 	/* Determine the full path of the file */
 	if (git_buf_joinpath(&path, repo_path, ref_name) < 0)
 		return -1;
-	
+
 	result = git_futils_readbuffer_updated(file_content, path.ptr, mtime, NULL, updated);
 	git_buf_free(&path);
 
@@ -175,7 +174,7 @@ static int packed_load(refdb_fs_backend *backend)
 		ref_cache->packfile = git_strmap_alloc();
 		GITERR_CHECK_ALLOC(ref_cache->packfile);
 	}
-	
+
 	result = reference_read(&packfile, &ref_cache->packfile_time,
 		backend->path, GIT_PACKEDREFS_FILE, &updated);
 
@@ -193,7 +192,7 @@ static int packed_load(refdb_fs_backend *backend)
 
 	if (result < 0)
 		return -1;
-	
+
 	if (!updated)
 		return 0;
 
@@ -241,7 +240,7 @@ parse_failed:
 	return -1;
 }
 
-static int loose_parse_oid(git_oid *oid, git_buf *file_content)
+static int loose_parse_oid(git_oid *oid, const char *filename, git_buf *file_content)
 {
 	size_t len;
 	const char *str;
@@ -263,7 +262,7 @@ static int loose_parse_oid(git_oid *oid, git_buf *file_content)
 		return 0;
 
 corrupted:
-	giterr_set(GITERR_REFERENCE, "Corrupted loose reference file");
+	giterr_set(GITERR_REFERENCE, "Corrupted loose reference file: %s", filename);
 	return -1;
 }
 
@@ -290,7 +289,7 @@ static int loose_lookup_to_packfile(
 	memcpy(ref->name, name, name_len);
 	ref->name[name_len] = 0;
 
-	if (loose_parse_oid(&ref->oid, &ref_file) < 0) {
+	if (loose_parse_oid(&ref->oid, name, &ref_file) < 0) {
 		git_buf_free(&ref_file);
 		git__free(ref);
 		return -1;
@@ -430,12 +429,12 @@ static int loose_lookup(
 			goto done;
 		}
 
-		*out = git_reference__alloc(backend->refdb, ref_name, NULL, target);
+		*out = git_reference__alloc_symbolic(ref_name, target);
 	} else {
-		if ((error = loose_parse_oid(&oid, &ref_file)) < 0)
+		if ((error = loose_parse_oid(&oid, ref_name, &ref_file)) < 0)
 			goto done;
-		
-		*out = git_reference__alloc(backend->refdb, ref_name, &oid, NULL);
+
+		*out = git_reference__alloc(ref_name, &oid, NULL);
 	}
 
 	if (*out == NULL)
@@ -456,19 +455,19 @@ static int packed_map_entry(
 
 	if (packed_load(backend) < 0)
 		return -1;
-	
+
 	/* Look up on the packfile */
 	packfile_refs = backend->refcache.packfile;
 
 	*pos = git_strmap_lookup_index(packfile_refs, ref_name);
-	
+
 	if (!git_strmap_valid_index(packfile_refs, *pos)) {
 		giterr_set(GITERR_REFERENCE, "Reference '%s' not found", ref_name);
 		return GIT_ENOTFOUND;
 	}
 
 	*entry = git_strmap_value_at(packfile_refs, *pos);
-	
+
 	return 0;
 }
 
@@ -480,13 +479,14 @@ static int packed_lookup(
 	struct packref *entry;
 	khiter_t pos;
 	int error = 0;
-	
+
 	if ((error = packed_map_entry(&entry, &pos, backend, ref_name)) < 0)
 		return error;
 
-	if ((*out = git_reference__alloc(backend->refdb, ref_name, &entry->oid, NULL)) == NULL)
+	if ((*out = git_reference__alloc(ref_name,
+		&entry->oid, &entry->peel)) == NULL)
 		return -1;
-	
+
 	return 0;
 }
 
@@ -582,7 +582,7 @@ static int refdb_fs_backend__foreach(
 	git_buf refs_path = GIT_BUF_INIT;
 	const char *ref_name;
 	void *ref = NULL;
-	
+
 	GIT_UNUSED(ref);
 
 	assert(_backend);
@@ -590,7 +590,7 @@ static int refdb_fs_backend__foreach(
 
 	if (packed_load(backend) < 0)
 		return -1;
-	
+
 	/* list all the packed references first */
 	if (list_type & GIT_REF_OID) {
 		git_strmap_foreach(backend->refcache.packfile, ref_name, ref, {
@@ -924,7 +924,7 @@ static int refdb_fs_backend__delete(
 	repo = backend->repo;
 
 	/* If a loose reference exists, remove it from the filesystem */
-	
+
 	if (git_buf_joinpath(&loose_path, repo->path_repository, ref->name) < 0)
 		return -1;
 
@@ -932,7 +932,7 @@ static int refdb_fs_backend__delete(
 		error = p_unlink(loose_path.ptr);
 		loose_deleted = 1;
 	}
-	
+
 	git_buf_free(&loose_path);
 
 	if (error != 0)
@@ -946,7 +946,7 @@ static int refdb_fs_backend__delete(
 
 		error = packed_write(backend);
 	}
-	
+
 	if (pack_error == GIT_ENOTFOUND)
 		error = loose_deleted ? 0 : GIT_ENOTFOUND;
 	else
@@ -998,8 +998,7 @@ static void refdb_fs_backend__free(git_refdb_backend *_backend)
 
 int git_refdb_backend_fs(
 	git_refdb_backend **backend_out,
-	git_repository *repository,
-	git_refdb *refdb)
+	git_repository *repository)
 {
 	refdb_fs_backend *backend;
 
@@ -1008,7 +1007,6 @@ int git_refdb_backend_fs(
 
 	backend->repo = repository;
 	backend->path = repository->path_repository;
-	backend->refdb = refdb;
 
 	backend->parent.exists = &refdb_fs_backend__exists;
 	backend->parent.lookup = &refdb_fs_backend__lookup;

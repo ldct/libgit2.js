@@ -42,7 +42,7 @@ void test_refs_branches_remote__insufficient_buffer_returns_error(void)
 
 	cl_git_fail_with(git_branch_remote_name(remotename,
 		expected_remote_name_length - 1, g_repo, remote_tracking_branch_name),
-			GIT_ERROR);
+			expected_remote_name_length);
 }
 
 void test_refs_branches_remote__no_matching_remote_returns_error(void)
@@ -69,7 +69,8 @@ void test_refs_branches_remote__ambiguous_remote_returns_error(void)
 	cl_git_pass(git_remote_create(&remote, g_repo, "addtest", "http://github.com/libgit2/libgit2"));
 
 	/* Update the remote fetch spec */
-	cl_git_pass(git_remote_set_fetchspec(remote, "refs/heads/*:refs/remotes/test/*"));
+	git_remote_clear_refspecs(remote);
+	cl_git_pass(git_remote_add_fetch(remote, "refs/heads/*:refs/remotes/test/*"));
 	cl_git_pass(git_remote_save(remote));
 
 	git_remote_free(remote);

@@ -7,6 +7,7 @@
 
 #include "common.h"
 #include "git2/config.h"
+#include "git2/sys/config.h"
 #include "git2/types.h"
 #include "git2/repository.h"
 #include "git2/index.h"
@@ -1327,7 +1328,7 @@ static int lookup_head_remote(git_buf *url, git_repository *repo)
 		goto cleanup;
 	}
 
-	if ((error = git_branch_tracking(&remote, head)) < 0)
+	if ((error = git_branch_upstream(&remote, head)) < 0)
 		goto cleanup;
 
 	/* remote should refer to something like refs/remotes/ORIGIN/BRANCH */

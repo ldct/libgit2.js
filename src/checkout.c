@@ -119,6 +119,7 @@ static bool checkout_is_workdir_modified(
 	const git_index_entry *wditem)
 {
 	git_oid oid;
+	const git_index_entry *ie;
 
 	/* handle "modified" submodule */
 	if (wditem->mode == GIT_FILEMODE_COMMIT) {
@@ -138,6 +139,17 @@ static bool checkout_is_workdir_modified(
 			return false;
 
 		return (git_oid_cmp(&baseitem->oid, sm_oid) != 0);
+	}
+
+	/* Look at the cache to decide if the workdir is modified.  If not,
+	 * we can simply compare the oid in the cache to the baseitem instead
+	 * of hashing the file.
+	 */
+	if ((ie = git_index_get_bypath(data->index, wditem->path, 0)) != NULL) {
+		if (wditem->mtime.seconds == ie->mtime.seconds &&
+			wditem->mtime.nanoseconds == ie->mtime.nanoseconds &&
+			wditem->file_size == ie->file_size)
+			return (git_oid_cmp(&baseitem->oid, &ie->oid) != 0);
 	}
 
 	/* depending on where base is coming from, we may or may not know
@@ -698,8 +710,8 @@ static int blob_content_to_file(
 	git_vector filters = GIT_VECTOR_INIT;
 
 	/* Create a fake git_buf from the blob raw data... */
-	filtered.ptr = blob->odb_object->raw.data;
-	filtered.size = blob->odb_object->raw.len;
+	filtered.ptr  = (void *)git_blob_rawcontent(blob);
+	filtered.size = (size_t)git_blob_rawsize(blob);
 	/* ... and make sure it doesn't get unexpectedly freed */
 	dont_free_filtered = true;
 
@@ -1107,7 +1119,6 @@ static int checkout_data_init(
 	git_checkout_opts *proposed)
 {
 	int error = 0;
-	git_config *cfg;
 	git_repository *repo = git_iterator_owner(target);
 
 	memset(data, 0, sizeof(*data));
@@ -1118,9 +1129,6 @@ static int checkout_data_init(
 	}
 
 	if ((error = git_repository__ensure_not_bare(repo, "checkout")) < 0)
-		return error;
-
-	if ((error = git_repository_config__weakptr(&cfg, repo)) < 0)
 		return error;
 
 	data->repo = repo;
@@ -1135,7 +1143,10 @@ static int checkout_data_init(
 
 	/* refresh config and index content unless NO_REFRESH is given */
 	if ((data->opts.checkout_strategy & GIT_CHECKOUT_NO_REFRESH) == 0) {
-		if ((error = git_config_refresh(cfg)) < 0)
+		git_config *cfg;
+
+		if ((error = git_repository_config__weakptr(&cfg, repo)) < 0 ||
+			(error = git_config_refresh(cfg)) < 0)
 			goto cleanup;
 
 		/* if we are checking out the index, don't reload,
@@ -1172,19 +1183,13 @@ static int checkout_data_init(
 
 	data->pfx = git_pathspec_prefix(&data->opts.paths);
 
-	error = git_config_get_bool(&data->can_symlink, cfg, "core.symlinks");
-	if (error < 0) {
-		if (error != GIT_ENOTFOUND)
-			goto cleanup;
-
-		/* If "core.symlinks" is not found anywhere, default to true. */
-		data->can_symlink = true;
-		giterr_clear();
-		error = 0;
-	}
+	if ((error = git_repository__cvar(
+			 &data->can_symlink, repo, GIT_CVAR_SYMLINKS)) < 0)
+		goto cleanup;
 
 	if (!data->opts.baseline) {
 		data->opts_free_baseline = true;
+
 		error = checkout_lookup_head_tree(&data->opts.baseline, repo);
 
 		if (error == GIT_EORPHANEDHEAD) {

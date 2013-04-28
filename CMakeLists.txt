@@ -270,6 +270,15 @@ ELSE()
 ENDIF()
 FILE(GLOB SRC_GIT2 src/*.c src/transports/*.c src/xdiff/*.c src/porcelain/*.c)
 
+# Determine architecture of the machine
+IF (CMAKE_SIZEOF_VOID_P EQUAL 8)
+	ADD_DEFINITIONS(-DGIT_ARCH_64)
+ELSEIF (CMAKE_SIZEOF_VOID_P EQUAL 4)
+	ADD_DEFINITIONS(-DGIT_ARCH_32)
+ELSE()
+	message(FATAL_ERROR "Unsupported architecture")
+ENDIF()
+
 # Compile and link libgit2
 ADD_LIBRARY(git2 ${SRC_GIT2} ${SRC_OS} ${SRC_ZLIB} ${SRC_HTTP} ${SRC_REGEX} ${SRC_SHA1} ${WIN_RC})
 TARGET_LINK_LIBRARIES(git2 ${SSL_LIBRARIES})
@@ -381,6 +390,9 @@ IF (BUILD_EXAMPLES)
 
 	ADD_EXECUTABLE(git-showindex examples/showindex.c)
 	TARGET_LINK_LIBRARIES(git-showindex git2)
+
+	ADD_EXECUTABLE(git-rev-list examples/rev-list.c)
+	TARGET_LINK_LIBRARIES(git-rev-list git2)
 ENDIF ()
 
 SET(CMAKE_VERBOSE_MAKEFILE true)
