@@ -107,6 +107,14 @@ function revwalk_from_head(s) {
   return ret;
 }
 
+var branch = Module.cwrap("branch", 'int', ['string']);
+
+function checkout(branch_name) {
+  ret = Module.ccall("set_HEAD_to_ref", 'int', ['string'], ["refs/heads/" + branch_name]);
+  readTimeline(revwalk_from_head("/zit"));
+  return ret;
+}
+
 $("#save").click(function() {
   if (typeof(current_file) == "undefined") {
     return;
