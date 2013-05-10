@@ -16,7 +16,7 @@ var stage = Module.cwrap("stage", 'number', ['string']);
 
 function commit(message) {
   var ret = Module.ccall("commit", 'number', ['string'], [message]);
-  readTimeline(revwalk_from_head("/zit"));
+  updateGraph(revwalk_from_head("/zit"));
   return ret;
 }
 
@@ -111,7 +111,7 @@ var branch = Module.cwrap("branch", 'int', ['string']);
 
 function checkout(branch_name) {
   ret = Module.ccall("set_HEAD_to_ref", 'int', ['string'], ["refs/heads/" + branch_name]);
-  readTimeline(revwalk_from_head("/zit"));
+  updateGraph(revwalk_from_head("/zit"));
   return ret;
 }
 

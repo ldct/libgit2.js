@@ -1,9 +1,16 @@
 #include <git2.h>
 #include <stdio.h>
+#include <string.h>
+
+int ref_callback(char* ref_name, void* payload) {
+  if (strncmp(ref_name, "refs/heads/", 11) == 0) {
+    git_revwalk_push_ref((git_revwalk*) payload, ref_name);
+  }
+}
 
 int revwalk_from_head(git_repository* repo) {
-  git_revwalk *walk;
-  git_commit *w_commit;
+  git_revwalk* walk;
+  git_commit* w_commit;
   git_oid w_oid;
   
   char w_oid_str[41];
@@ -15,6 +22,8 @@ int revwalk_from_head(git_repository* repo) {
   git_revwalk_new(&walk, repo);
   git_revwalk_sorting(walk, GIT_SORT_TOPOLOGICAL);
   
+  git_reference_foreach(repo, GIT_REF_LISTALL, ref_callback, walk);
+
   git_revwalk_push_head(walk);
   while ((git_revwalk_next(&w_oid, walk)) == 0) {
     git_oid_fmt(w_oid_str, &w_oid);
