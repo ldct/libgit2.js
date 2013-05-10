@@ -19,4 +19,9 @@ function updateGraph(graph) {
   out += "}";
 
   $("#inputGraph").val(out);
+  try {
+    $("#inputGraph")[0].onkeyup();
+  } catch(e) {
+    console.log("");
+  }
 }

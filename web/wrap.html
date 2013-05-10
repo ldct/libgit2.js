@@ -13,7 +13,7 @@
       <progress value="0" max="100" id="progress" hidden=1></progress>  
     </div>
     <hr>
-    <svg width=800 height=600>
+    <svg width=400 height=300>
       <defs>
         <marker id="arrowhead"
                 viewBox="0 0 10 10"
@@ -33,7 +33,7 @@
     <textarea id="text_editor" rows=10></textarea>
     <span id="save">save</span>
 
-    
+
     <script type='text/javascript'>
       var Module = {
         std_out: [],
@@ -74,16 +74,6 @@
   <script src="jquery.min.js"></script>
   <script src="timeline.js"></script>
   <script src="functions.js"></script>
-  <script>
-    general();
-    branch("twig");
-    checkout("twig");
-    commit("twigglet");
-    checkout("master");
-    commit("hi");
-    updateGraph(revwalk_from_head("."));
-    show_dir(ls());
-  </script>
 
 
 
@@ -495,9 +485,16 @@ function update() {
 }
 </script>
 
-<script>
-tryDraw();
-</script>
+  <script>
+    general();
+    branch("twig");
+    checkout("twig");
+    commit("twigglet");
+    checkout("master");
+    commit("hi");
+    updateGraph(revwalk_from_head("."));
+    show_dir(ls());
+  </script>
 
 
   </body>
