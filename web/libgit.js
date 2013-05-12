@@ -1,1 +1,1 @@
-/home/xuanji/libgit2/build/libgit.js
+../build/libgit.js
