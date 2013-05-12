@@ -397,7 +397,7 @@ ENDIF ()
 
 SET(CMAKE_VERBOSE_MAKEFILE true)
 
-set(EMSCRIPTEN_ROOT_PATH "/home/xuanji/emscripten")
+set(EMSCRIPTEN_ROOT_PATH "/home/xuanji/gits/emscripten")
 
 set(CMAKE_C_COMPILER "${EMSCRIPTEN_ROOT_PATH}/emcc")
 set(CMAKE_CXX_COMPILER "${EMSCRIPTEN_ROOT_PATH}/em++")
