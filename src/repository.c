@@ -111,6 +111,7 @@ void git_repository_free(git_repository *repo)
 
 	git__free(repo->path_repository);
 	git__free(repo->workdir);
+	git__free(repo->namespace);
 
 	git__free(repo);
 }
@@ -593,6 +594,10 @@ int git_repository_config__weakptr(git_config **out, git_repository *repo)
 		git_config_find_xdg_r(&xdg_buf);
 		git_config_find_system_r(&system_buf);
 
+		/* If there is no global file, open a backend for it anyway */
+		if (git_buf_len(&global_buf) == 0)
+			git_config__global_location(&global_buf);
+
 		error = load_config(
 			&config, repo,
 			path_unless_empty(&global_buf),
@@ -762,6 +767,23 @@ void git_repository_set_index(git_repository *repo, git_index *index)
 {
 	assert(repo && index);
 	set_index(repo, index);
+}
+
+int git_repository_set_namespace(git_repository *repo, const char *namespace)
+{
+	git__free(repo->namespace);
+
+	if (namespace == NULL) {
+		repo->namespace = NULL;
+		return 0;
+	}
+
+	return (repo->namespace = git__strdup(namespace)) ? 0 : -1;
+}
+
+const char *git_repository_get_namespace(git_repository *repo)
+{
+	return repo->namespace;
 }
 
 static int check_repositoryformatversion(git_config *config)
@@ -1451,7 +1473,7 @@ static int at_least_one_cb(const char *refname, void *payload)
 
 static int repo_contains_no_reference(git_repository *repo)
 {
-	int error = git_reference_foreach(repo, GIT_REF_LISTALL, at_least_one_cb, NULL);
+	int error = git_reference_foreach(repo, at_least_one_cb, NULL);
 
 	if (error == GIT_EUSER)
 		return 0;
@@ -1574,12 +1596,16 @@ int git_repository_message(char *buffer, size_t len, git_repository *repo)
 	struct stat st;
 	int error;
 
+	if (buffer != NULL)
+		*buffer = '\0';
+
 	if (git_buf_joinpath(&path, repo->path_repository, GIT_MERGE_MSG_FILE) < 0)
 		return -1;
 
 	if ((error = p_stat(git_buf_cstr(&path), &st)) < 0) {
 		if (errno == ENOENT)
 			error = GIT_ENOTFOUND;
+		giterr_set(GITERR_OS, "Could not access message file");
 	}
 	else if (buffer != NULL) {
 		error = git_futils_readbuffer(&buf, git_buf_cstr(&path));

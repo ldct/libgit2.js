@@ -88,42 +88,61 @@ typedef enum {
 	GIT_DIFF_INCLUDE_UNTRACKED = (1 << 8),
 	/** Include unmodified files in the diff list */
 	GIT_DIFF_INCLUDE_UNMODIFIED = (1 << 9),
+
 	/** Even with GIT_DIFF_INCLUDE_UNTRACKED, an entire untracked directory
 	 *  will be marked with only a single entry in the diff list; this flag
 	 *  adds all files under the directory as UNTRACKED entries, too.
 	 */
 	GIT_DIFF_RECURSE_UNTRACKED_DIRS = (1 << 10),
+
 	/** If the pathspec is set in the diff options, this flags means to
 	 *  apply it as an exact match instead of as an fnmatch pattern.
 	 */
 	GIT_DIFF_DISABLE_PATHSPEC_MATCH = (1 << 11),
+
 	/** Use case insensitive filename comparisons */
 	GIT_DIFF_DELTAS_ARE_ICASE = (1 << 12),
+
 	/** When generating patch text, include the content of untracked files */
 	GIT_DIFF_INCLUDE_UNTRACKED_CONTENT = (1 << 13),
+
 	/** Disable updating of the `binary` flag in delta records.  This is
 	 *  useful when iterating over a diff if you don't need hunk and data
 	 *  callbacks and want to avoid having to load file completely.
 	 */
 	GIT_DIFF_SKIP_BINARY_CHECK = (1 << 14),
+
 	/** Normally, a type change between files will be converted into a
 	 *  DELETED record for the old and an ADDED record for the new; this
 	 *  options enabled the generation of TYPECHANGE delta records.
 	 */
 	GIT_DIFF_INCLUDE_TYPECHANGE = (1 << 15),
+
 	/** Even with GIT_DIFF_INCLUDE_TYPECHANGE, blob->tree changes still
 	 *  generally show as a DELETED blob.  This flag tries to correctly
 	 *  label blob->tree transitions as TYPECHANGE records with new_file's
 	 *  mode set to tree.  Note: the tree SHA will not be available.
 	 */
 	GIT_DIFF_INCLUDE_TYPECHANGE_TREES  = (1 << 16),
+
 	/** Ignore file mode changes */
 	GIT_DIFF_IGNORE_FILEMODE = (1 << 17),
+
 	/** Even with GIT_DIFF_INCLUDE_IGNORED, an entire ignored directory
 	 *  will be marked with only a single entry in the diff list; this flag
 	 *  adds all files under the directory as IGNORED entries, too.
 	 */
 	GIT_DIFF_RECURSE_IGNORED_DIRS = (1 << 18),
+
+	/** Core Git scans inside untracked directories, labeling them IGNORED
+	 *  if they are empty or only contain ignored files; a directory is
+	 *  consider UNTRACKED only if it has an actual untracked file in it.
+	 *  This scan is extra work for a case you often don't care about.  This
+	 *  flag makes libgit2 immediately label an untracked directory as
+	 *  UNTRACKED without looking insde it (which differs from core Git).
+	 *  Of course, ignore rules are still checked for the directory itself.
+	 */
+	GIT_DIFF_FAST_UNTRACKED_DIRS = (1 << 19),
 } git_diff_option_t;
 
 /**
@@ -337,8 +356,10 @@ typedef enum {
 	GIT_DIFF_LINE_CONTEXT   = ' ',
 	GIT_DIFF_LINE_ADDITION  = '+',
 	GIT_DIFF_LINE_DELETION  = '-',
-	GIT_DIFF_LINE_ADD_EOFNL = '\n', /**< Removed line w/o LF & added one with */
-	GIT_DIFF_LINE_DEL_EOFNL = '\0', /**< LF was removed at end of file */
+
+	GIT_DIFF_LINE_CONTEXT_EOFNL = '=', /**< Both files have no LF at end */
+	GIT_DIFF_LINE_ADD_EOFNL = '>',     /**< Old has no LF at end, new does */
+	GIT_DIFF_LINE_DEL_EOFNL = '<',     /**< Old has LF at end, new does not */
 
 	/* The following values will only be sent to a `git_diff_data_cb` when
 	 * the content of a diff is being formatted (eg. through
@@ -469,6 +490,8 @@ typedef struct {
 
 /**
  * Deallocate a diff list.
+ *
+ * @param diff The previously created diff list; cannot be used after free.
  */
 GIT_EXTERN(void) git_diff_list_free(git_diff_list *diff);
 
@@ -478,12 +501,14 @@ GIT_EXTERN(void) git_diff_list_free(git_diff_list *diff);
  * This is equivalent to `git diff <old-tree> <new-tree>`
  *
  * The first tree will be used for the "old_file" side of the delta and the
- * second tree will be used for the "new_file" side of the delta.
+ * second tree will be used for the "new_file" side of the delta.  You can
+ * pass NULL to indicate an empty tree, although it is an error to pass
+ * NULL for both the `old_tree` and `new_tree`.
  *
  * @param diff Output pointer to a git_diff_list pointer to be allocated.
  * @param repo The repository containing the trees.
- * @param old_tree A git_tree object to diff from.
- * @param new_tree A git_tree object to diff to.
+ * @param old_tree A git_tree object to diff from, or NULL for empty tree.
+ * @param new_tree A git_tree object to diff to, or NULL for empty tree.
  * @param opts Structure with options to influence diff or NULL for defaults.
  */
 GIT_EXTERN(int) git_diff_tree_to_tree(
@@ -504,7 +529,7 @@ GIT_EXTERN(int) git_diff_tree_to_tree(
  *
  * @param diff Output pointer to a git_diff_list pointer to be allocated.
  * @param repo The repository containing the tree and index.
- * @param old_tree A git_tree object to diff from.
+ * @param old_tree A git_tree object to diff from, or NULL for empty tree.
  * @param index The index to diff with; repo index used if NULL.
  * @param opts Structure with options to influence diff or NULL for defaults.
  */
@@ -563,7 +588,7 @@ GIT_EXTERN(int) git_diff_index_to_workdir(
  *
  * @param diff A pointer to a git_diff_list pointer that will be allocated.
  * @param repo The repository containing the tree.
- * @param old_tree A git_tree object to diff from.
+ * @param old_tree A git_tree object to diff from, or NULL for empty tree.
  * @param opts Structure with options to influence diff or NULL for defaults.
  */
 GIT_EXTERN(int) git_diff_tree_to_workdir(
@@ -907,7 +932,14 @@ GIT_EXTERN(int) git_diff_patch_to_str(
  * to 1 and no call to the hunk_cb nor line_cb will be made (unless you pass
  * `GIT_DIFF_FORCE_TEXT` of course).
  *
- * @return 0 on success, GIT_EUSER on non-zero callback, or error code
+ * @param old_blob Blob for old side of diff, or NULL for empty blob
+ * @param new_blob Blob for new side of diff, or NULL for empty blob
+ * @param options Options for diff, or NULL for default options
+ * @param file_cb Callback for "file"; made once if there is a diff; can be NULL
+ * @param hunk_cb Callback for each hunk in diff; can be NULL
+ * @param line_cb Callback for each line in diff; can be NULL
+ * @param payload Payload passed to each callback function
+ * @return 0 on success, GIT_EUSER on non-zero callback return, or error code
  */
 GIT_EXTERN(int) git_diff_blobs(
 	const git_blob *old_blob,
@@ -930,7 +962,15 @@ GIT_EXTERN(int) git_diff_blobs(
  * entire content of the buffer added).  Passing NULL to the buffer will do
  * the reverse, with GIT_DELTA_REMOVED and blob content removed.
  *
- * @return 0 on success, GIT_EUSER on non-zero callback, or error code
+ * @param old_blob Blob for old side of diff, or NULL for empty blob
+ * @param buffer Raw data for new side of diff
+ * @param buffer_len Length of raw data for new side of diff
+ * @param options Options for diff, or NULL for default options
+ * @param file_cb Callback for "file"; made once if there is a diff; can be NULL
+ * @param hunk_cb Callback for each hunk in diff; can be NULL
+ * @param line_cb Callback for each line in diff; can be NULL
+ * @param payload Payload passed to each callback function
+ * @return 0 on success, GIT_EUSER on non-zero callback return, or error code
  */
 GIT_EXTERN(int) git_diff_blob_to_buffer(
 	const git_blob *old_blob,

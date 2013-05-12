@@ -124,7 +124,7 @@ static int store_refs(transport_local *t)
 
 	assert(t);
 
-	if (git_reference_list(&ref_names, t->repo, GIT_REF_LISTALL) < 0 ||
+	if (git_reference_list(&ref_names, t->repo) < 0 ||
 		git_vector_init(&t->refs, ref_names.count, NULL) < 0)
 		goto on_error;
 
@@ -282,7 +282,7 @@ static int local_push_copy_object(
 		odb_obj_size) < 0 ||
 		odb_stream->finalize_write(&remote_odb_obj_oid, odb_stream) < 0) {
 		error = -1;
-	} else if (git_oid_cmp(&obj->id, &remote_odb_obj_oid) != 0) {
+	} else if (git_oid__cmp(&obj->id, &remote_odb_obj_oid) != 0) {
 		giterr_set(GITERR_ODB, "Error when writing object to remote odb "
 			"during local push operation. Remote odb object oid does not "
 			"match local oid.");

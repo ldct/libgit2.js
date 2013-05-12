@@ -91,13 +91,15 @@ int git_config_add_file_ondisk(
 	int force)
 {
 	git_config_backend *file = NULL;
+	struct stat st;
 	int res;
 
 	assert(cfg && path);
 
-	if (!git_path_isfile(path)) {
-		giterr_set(GITERR_CONFIG, "Cannot find config file '%s'", path);
-		return GIT_ENOTFOUND;
+	res = p_stat(path, &st);
+	if (res < 0 && errno != ENOENT) {
+		giterr_set(GITERR_CONFIG, "Error stat'ing config file '%s'", path);
+		return -1;
 	}
 
 	if (git_config_file__ondisk(&file, path) < 0)
@@ -225,6 +227,14 @@ static int git_config__add_internal(
 	return 0;
 }
 
+int git_config_open_global(git_config **cfg_out, git_config *cfg)
+{
+	if (!git_config_open_level(cfg_out, cfg, GIT_CONFIG_LEVEL_XDG))
+		return 0;
+
+	return git_config_open_level(cfg_out, cfg, GIT_CONFIG_LEVEL_GLOBAL);
+}
+
 int git_config_open_level(
     git_config **cfg_out,
     const git_config *cfg_parent,
@@ -344,6 +354,13 @@ int git_config_delete_entry(git_config *cfg, const char *name)
  * Setters
  **************/
 
+static int config_error_nofiles(const char *name)
+{
+	giterr_set(GITERR_CONFIG,
+		"Cannot set value for '%s' when no config files exist", name);
+	return GIT_ENOTFOUND;
+}
+
 int git_config_set_int64(git_config *cfg, const char *name, int64_t value)
 {
 	char str_value[32]; /* All numbers should fit in here */
@@ -373,6 +390,8 @@ int git_config_set_string(git_config *cfg, const char *name, const char *value)
 	}
 
 	internal = git_vector_get(&cfg->files, 0);
+	if (!internal)
+		return config_error_nofiles(name);
 	file = internal->file;
 
 	error = file->set(file, name, value);
@@ -436,6 +455,12 @@ static int get_string_at_file(const char **out, const git_config_backend *file, 
 	return res;
 }
 
+static int config_error_notfound(const char *name)
+{
+	giterr_set(GITERR_CONFIG, "Config value '%s' was not found", name);
+	return GIT_ENOTFOUND;
+}
+
 static int get_string(const char **out, const git_config *cfg, const char *name)
 {
 	file_internal *internal;
@@ -448,7 +473,7 @@ static int get_string(const char **out, const git_config *cfg, const char *name)
 			return res;
 	}
 
-	return GIT_ENOTFOUND;
+	return config_error_notfound(name);
 }
 
 int git_config_get_bool(int *out, const git_config *cfg, const char *name)
@@ -488,7 +513,7 @@ int git_config_get_entry(const git_config_entry **out, const git_config *cfg, co
 			return ret;
 	}
 
-	return GIT_ENOTFOUND;
+	return config_error_notfound(name);
 }
 
 int git_config_get_multivar(const git_config *cfg, const char *name, const char *regexp,
@@ -511,7 +536,7 @@ int git_config_get_multivar(const git_config *cfg, const char *name, const char 
 			return ret;
 	}
 
-	return 0;
+	return (ret == GIT_ENOTFOUND) ? config_error_notfound(name) : 0;
 }
 
 int git_config_set_multivar(git_config *cfg, const char *name, const char *regexp, const char *value)
@@ -520,6 +545,8 @@ int git_config_set_multivar(git_config *cfg, const char *name, const char *regex
 	file_internal *internal;
 
 	internal = git_vector_get(&cfg->files, 0);
+	if (!internal)
+		return config_error_nofiles(name);
 	file = internal->file;
 
 	return file->set_multivar(file, name, regexp, value);
@@ -580,6 +607,33 @@ int git_config_find_system(char *system_config_path, size_t length)
 		system_config_path, length, git_config_find_system_r);
 }
 
+int git_config__global_location(git_buf *buf)
+{
+	const git_buf *paths;
+	const char *sep, *start;
+	size_t len;
+
+	if (git_futils_dirs_get(&paths, GIT_FUTILS_DIR_GLOBAL) < 0)
+		return -1;
+
+	/* no paths, so give up */
+	if (git_buf_len(paths) == 0)
+		return -1;
+
+	start = git_buf_cstr(paths);
+	sep = strchr(start, GIT_PATH_LIST_SEPARATOR);
+
+	if (sep)
+		len = sep - start;
+	else
+		len = paths->size;
+
+	if (git_buf_set(buf, start, len) < 0)
+		return -1;
+
+	return git_buf_joinpath(buf, buf->ptr, GIT_CONFIG_FILENAME_GLOBAL);
+}
+
 int git_config_open_default(git_config **out)
 {
 	int error;
@@ -588,9 +642,12 @@ int git_config_open_default(git_config **out)
 
 	error = git_config_new(&cfg);
 
-	if (!error && !git_config_find_global_r(&buf))
+	if (!error && (!git_config_find_global_r(&buf) ||
+		       !git_config__global_location(&buf))) {
 		error = git_config_add_file_ondisk(cfg, buf.ptr,
 			GIT_CONFIG_LEVEL_GLOBAL, 0);
+	} else {
+	}
 
 	if (!error && !git_config_find_xdg_r(&buf))
 		error = git_config_add_file_ondisk(cfg, buf.ptr,

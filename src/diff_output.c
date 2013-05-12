@@ -101,8 +101,8 @@ static bool diff_delta_is_binary_forced(
 
 	/* make sure files are conceivably mmap-able */
 	if ((git_off_t)((size_t)delta->old_file.size) != delta->old_file.size ||
-		(git_off_t)((size_t)delta->new_file.size) != delta->new_file.size)
-	{
+		(git_off_t)((size_t)delta->new_file.size) != delta->new_file.size) {
+
 		delta->old_file.flags |= GIT_DIFF_FLAG_BINARY;
 		delta->new_file.flags |= GIT_DIFF_FLAG_BINARY;
 		delta->flags |= GIT_DIFF_FLAG_BINARY;
@@ -232,8 +232,7 @@ static int get_blob_content(
 	if (git_oid_iszero(&file->oid))
 		return 0;
 
-	if (file->mode == GIT_FILEMODE_COMMIT)
-	{
+	if (file->mode == GIT_FILEMODE_COMMIT) {
 		char oidstr[GIT_OID_HEXSZ+1];
 		git_buf content = GIT_BUF_INIT;
 
@@ -299,8 +298,8 @@ static int get_workdir_sm_content(
 	char oidstr[GIT_OID_HEXSZ+1];
 
 	if ((error = git_submodule_lookup(&sm, ctxt->repo, file->path)) < 0 ||
-		(error = git_submodule_status(&sm_status, sm)) < 0)
-	{
+		(error = git_submodule_status(&sm_status, sm)) < 0) {
+
 		/* GIT_EEXISTS means a "submodule" that has not been git added */
 		if (error == GIT_EEXISTS)
 			error = 0;
@@ -312,8 +311,8 @@ static int get_workdir_sm_content(
 		const git_oid* sm_head;
 
 		if ((sm_head = git_submodule_wd_id(sm)) != NULL ||
-			(sm_head = git_submodule_head_id(sm)) != NULL)
-		{
+			(sm_head = git_submodule_head_id(sm)) != NULL) {
+
 			git_oid_cpy(&file->oid, sm_head);
 			file->flags |= GIT_DIFF_FLAG_VALID_OID;
 		}
@@ -594,6 +593,8 @@ static int diff_patch_load(
 		delta->new_file.flags |= GIT_DIFF_FLAG__NO_DATA;
 		break;
 	case GIT_DELTA_MODIFIED:
+	case GIT_DELTA_COPIED:
+	case GIT_DELTA_RENAMED:
 		break;
 	case GIT_DELTA_UNTRACKED:
 		delta->old_file.flags |= GIT_DIFF_FLAG__NO_DATA;
@@ -660,8 +661,8 @@ static int diff_patch_load(
 	 */
 	if (check_if_unmodified &&
 		delta->old_file.mode == delta->new_file.mode &&
-		!git_oid_cmp(&delta->old_file.oid, &delta->new_file.oid))
-	{
+		!git_oid__cmp(&delta->old_file.oid, &delta->new_file.oid)) {
+
 		delta->status = GIT_DELTA_UNMODIFIED;
 
 		if ((ctxt->opts->flags & GIT_DIFF_INCLUDE_UNMODIFIED) == 0)
@@ -727,7 +728,7 @@ static int diff_patch_cb(void *priv, mmbuffer_t *bufs, int len)
 		char origin =
 			(*bufs[0].ptr == '+') ? GIT_DIFF_LINE_DEL_EOFNL :
 			(*bufs[0].ptr == '-') ? GIT_DIFF_LINE_ADD_EOFNL :
-			GIT_DIFF_LINE_CONTEXT;
+			GIT_DIFF_LINE_CONTEXT_EOFNL;
 
 		if (ctxt->data_cb != NULL &&
 			ctxt->data_cb(patch->delta, &ctxt->range,
@@ -931,11 +932,13 @@ static int diff_patch_line_cb(
 
 	switch (line_origin) {
 	case GIT_DIFF_LINE_ADDITION:
+	case GIT_DIFF_LINE_DEL_EOFNL:
 		line->oldno = -1;
 		line->newno = patch->newno;
 		patch->newno += line->lines;
 		break;
 	case GIT_DIFF_LINE_DELETION:
+	case GIT_DIFF_LINE_ADD_EOFNL:
 		line->oldno = patch->oldno;
 		line->newno = -1;
 		patch->oldno += line->lines;
@@ -1049,6 +1052,12 @@ char git_diff_status_char(git_delta_t status)
 	return code;
 }
 
+static int callback_error(void)
+{
+	giterr_clear();
+	return GIT_EUSER;
+}
+
 static int print_compact(
 	const git_diff_delta *delta, float progress, void *data)
 {
@@ -1083,10 +1092,7 @@ static int print_compact(
 
 	if (pi->print_cb(delta, NULL, GIT_DIFF_LINE_FILE_HDR,
 			git_buf_cstr(pi->buf), git_buf_len(pi->buf), pi->payload))
-	{
-		giterr_clear();
-		return GIT_EUSER;
-	}
+		return callback_error();
 
 	return 0;
 }
@@ -1200,10 +1206,7 @@ static int print_patch_file(
 
 	if (pi->print_cb(delta, NULL, GIT_DIFF_LINE_FILE_HDR,
 			git_buf_cstr(pi->buf), git_buf_len(pi->buf), pi->payload))
-	{
-		giterr_clear();
-		return GIT_EUSER;
-	}
+		return callback_error();
 
 	if ((delta->flags & GIT_DIFF_FLAG_BINARY) == 0)
 		return 0;
@@ -1217,10 +1220,7 @@ static int print_patch_file(
 
 	if (pi->print_cb(delta, NULL, GIT_DIFF_LINE_BINARY,
 			git_buf_cstr(pi->buf), git_buf_len(pi->buf), pi->payload))
-	{
-		giterr_clear();
-		return GIT_EUSER;
-	}
+		return callback_error();
 
 	return 0;
 }
@@ -1243,10 +1243,7 @@ static int print_patch_hunk(
 
 	if (pi->print_cb(d, r, GIT_DIFF_LINE_HUNK_HDR,
 			git_buf_cstr(pi->buf), git_buf_len(pi->buf), pi->payload))
-	{
-		giterr_clear();
-		return GIT_EUSER;
-	}
+		return callback_error();
 
 	return 0;
 }
@@ -1278,10 +1275,7 @@ static int print_patch_line(
 
 	if (pi->print_cb(delta, range, line_origin,
 			git_buf_cstr(pi->buf), git_buf_len(pi->buf), pi->payload))
-	{
-		giterr_clear();
-		return GIT_EUSER;
-	}
+		return callback_error();
 
 	return 0;
 }
@@ -1388,7 +1382,7 @@ static int diff_single_apply(diff_single_data *data)
 		(has_old ? GIT_DELTA_MODIFIED : GIT_DELTA_ADDED) :
 		(has_old ? GIT_DELTA_DELETED : GIT_DELTA_UNTRACKED);
 
-	if (git_oid_cmp(&delta->new_file.oid, &delta->old_file.oid) == 0)
+	if (git_oid__cmp(&delta->new_file.oid, &delta->old_file.oid) == 0)
 		delta->status = GIT_DELTA_UNMODIFIED;
 
 	if ((error = diff_delta_is_binary_by_content(
@@ -1621,6 +1615,12 @@ int git_diff_patch_line_stats(
 	return 0;
 }
 
+static int diff_error_outofrange(const char *thing)
+{
+	giterr_set(GITERR_INVALID, "Diff patch %s index out of range", thing);
+	return GIT_ENOTFOUND;
+}
+
 int git_diff_patch_get_hunk(
 	const git_diff_range **range,
 	const char **header,
@@ -1638,7 +1638,8 @@ int git_diff_patch_get_hunk(
 		if (header) *header = NULL;
 		if (header_len) *header_len = 0;
 		if (lines_in_hunk) *lines_in_hunk = 0;
-		return GIT_ENOTFOUND;
+
+		return diff_error_outofrange("hunk");
 	}
 
 	hunk = &patch->hunks[hunk_idx];
@@ -1658,7 +1659,7 @@ int git_diff_patch_num_lines_in_hunk(
 	assert(patch);
 
 	if (hunk_idx >= patch->hunks_size)
-		return GIT_ENOTFOUND;
+		return diff_error_outofrange("hunk");
 	else
 		return (int)patch->hunks[hunk_idx].line_count;
 }
@@ -1675,15 +1676,20 @@ int git_diff_patch_get_line_in_hunk(
 {
 	diff_patch_hunk *hunk;
 	diff_patch_line *line;
+	const char *thing;
 
 	assert(patch);
 
-	if (hunk_idx >= patch->hunks_size)
+	if (hunk_idx >= patch->hunks_size) {
+		thing = "hunk";
 		goto notfound;
+	}
 	hunk = &patch->hunks[hunk_idx];
 
-	if (line_of_hunk >= hunk->line_count)
+	if (line_of_hunk >= hunk->line_count) {
+		thing = "link";
 		goto notfound;
+	}
 
 	line = &patch->lines[hunk->line_start + line_of_hunk];
 
@@ -1702,7 +1708,7 @@ notfound:
 	if (old_lineno) *old_lineno = -1;
 	if (new_lineno) *new_lineno = -1;
 
-	return GIT_ENOTFOUND;
+	return diff_error_outofrange(thing);
 }
 
 static int print_to_buffer_cb(

@@ -139,7 +139,7 @@ static int reference_path_available(
 	data.available = 1;
 
 	error = git_reference_foreach(
-		repo, GIT_REF_LISTALL, _reference_available_cb, (void *)&data);
+		repo, _reference_available_cb, (void *)&data);
 	if (error < 0)
 		return error;
 
@@ -288,6 +288,67 @@ int git_reference_lookup_resolved(
 
 	*ref_out = ref;
 	return 0;
+}
+
+int git_reference_dwim(git_reference **out, git_repository *repo, const char *refname)
+{
+	int error = 0, i;
+	bool fallbackmode = true, foundvalid = false;
+	git_reference *ref;
+	git_buf refnamebuf = GIT_BUF_INIT, name = GIT_BUF_INIT;
+
+	static const char* formatters[] = {
+		"%s",
+		GIT_REFS_DIR "%s",
+		GIT_REFS_TAGS_DIR "%s",
+		GIT_REFS_HEADS_DIR "%s",
+		GIT_REFS_REMOTES_DIR "%s",
+		GIT_REFS_REMOTES_DIR "%s/" GIT_HEAD_FILE,
+		NULL
+	};
+
+	if (*refname)
+		git_buf_puts(&name, refname);
+	else {
+		git_buf_puts(&name, GIT_HEAD_FILE);
+		fallbackmode = false;
+	}
+
+	for (i = 0; formatters[i] && (fallbackmode || i == 0); i++) {
+
+		git_buf_clear(&refnamebuf);
+
+		if ((error = git_buf_printf(&refnamebuf, formatters[i], git_buf_cstr(&name))) < 0)
+			goto cleanup;
+
+		if (!git_reference_is_valid_name(git_buf_cstr(&refnamebuf))) {
+			error = GIT_EINVALIDSPEC;
+			continue;
+		}
+		foundvalid = true;
+
+		error = git_reference_lookup_resolved(&ref, repo, git_buf_cstr(&refnamebuf), -1);
+
+		if (!error) {
+			*out = ref;
+			error = 0;
+			goto cleanup;
+		}
+
+		if (error != GIT_ENOTFOUND)
+			goto cleanup;
+	}
+
+cleanup:
+	if (error && !foundvalid) {
+		/* never found a valid reference name */
+		giterr_set(GITERR_REFERENCE,
+			"Could not use '%s' as valid reference name", git_buf_cstr(&name));
+	}
+
+	git_buf_free(&name);
+	git_buf_free(&refnamebuf);
+	return error;
 }
 
 /**
@@ -558,14 +619,59 @@ int git_reference_resolve(git_reference **ref_out, const git_reference *ref)
 
 int git_reference_foreach(
 	git_repository *repo,
-	unsigned int list_flags,
 	git_reference_foreach_cb callback,
 	void *payload)
 {
-	git_refdb *refdb;
-	git_repository_refdb__weakptr(&refdb, repo);
+	git_reference_iterator *iter;
+	const char *name;
+	int error;
 
-	return git_refdb_foreach(refdb, list_flags, callback, payload);
+	if (git_reference_iterator_new(&iter, repo) < 0)
+		return -1;
+
+	while ((error = git_reference_next(&name, iter)) == 0) {
+		if (callback(name, payload)) {
+			error = GIT_EUSER;
+			goto out;
+		}
+	}
+
+	if (error == GIT_ITEROVER)
+		error = 0;
+
+out:
+	git_reference_iterator_free(iter);
+	return error;
+}
+
+int git_reference_iterator_new(git_reference_iterator **out, git_repository *repo)
+{
+	git_refdb *refdb;
+
+	if (git_repository_refdb__weakptr(&refdb, repo) < 0)
+		return -1;
+
+	return git_refdb_iterator(out, refdb);
+}
+
+int git_reference_iterator_glob_new(git_reference_iterator **out, git_repository *repo, const char *glob)
+{
+	git_refdb *refdb;
+
+	if (git_repository_refdb__weakptr(&refdb, repo) < 0)
+		return -1;
+
+	return git_refdb_iterator_glob(out, refdb, glob);
+}
+
+int git_reference_next(const char **out, git_reference_iterator *iter)
+{
+	return git_refdb_next(out, iter);
+}
+
+void git_reference_iterator_free(git_reference_iterator *iter)
+{
+	git_refdb_iterator_free(iter);
 }
 
 static int cb__reflist_add(const char *ref, void *data)
@@ -575,8 +681,7 @@ static int cb__reflist_add(const char *ref, void *data)
 
 int git_reference_list(
 	git_strarray *array,
-	git_repository *repo,
-	unsigned int list_flags)
+	git_repository *repo)
 {
 	git_vector ref_list;
 
@@ -589,7 +694,7 @@ int git_reference_list(
 		return -1;
 
 	if (git_reference_foreach(
-			repo, list_flags, &cb__reflist_add, (void *)&ref_list) < 0) {
+			repo, &cb__reflist_add, (void *)&ref_list) < 0) {
 		git_vector_free(&ref_list);
 		return -1;
 	}
@@ -752,6 +857,7 @@ int git_reference__normalize_name(
 		goto cleanup;
 
 	if ((segments_count == 1 ) &&
+	    !(flags & GIT_REF_FORMAT_REFSPEC_SHORTHAND) &&
 		!(is_all_caps_and_underscore(name, (size_t)segment_len) ||
 			((flags & GIT_REF_FORMAT_REFSPEC_PATTERN) && !strcmp("*", name))))
 			goto cleanup;
@@ -831,7 +937,7 @@ int git_reference_cmp(git_reference *ref1, git_reference *ref2)
 	if (type1 == GIT_REF_SYMBOLIC)
 		return strcmp(ref1->target.symbolic, ref2->target.symbolic);
 
-	return git_oid_cmp(&ref1->target.oid, &ref2->target.oid);
+	return git_oid__cmp(&ref1->target.oid, &ref2->target.oid);
 }
 
 static int reference__update_terminal(
@@ -843,8 +949,10 @@ static int reference__update_terminal(
 	git_reference *ref;
 	int error = 0;
 
-	if (nesting > MAX_NESTING_LEVEL)
+	if (nesting > MAX_NESTING_LEVEL) {
+		giterr_set(GITERR_REFERENCE, "Reference chain too deep (%d)", nesting);
 		return GIT_ENOTFOUND;
+	}
 
 	error = git_reference_lookup(&ref, repo, ref_name);
 
@@ -886,19 +994,29 @@ int git_reference__update_terminal(
 int git_reference_foreach_glob(
 	git_repository *repo,
 	const char *glob,
-	unsigned int list_flags,
-	int (*callback)(
-		const char *reference_name,
-		void *payload),
+	git_reference_foreach_cb callback,
 	void *payload)
 {
-	git_refdb *refdb;
+	git_reference_iterator *iter;
+	const char *name;
+	int error;
 
-	assert(repo && glob && callback);
+	if (git_reference_iterator_glob_new(&iter, repo, glob) < 0)
+		return -1;
 
-	git_repository_refdb__weakptr(&refdb, repo);
+	while ((error = git_reference_next(&name, iter)) == 0) {
+		if (callback(name, payload)) {
+			error = GIT_EUSER;
+			goto out;
+		}
+	}
 
-	return git_refdb_foreach_glob(refdb, glob, list_flags, callback, payload);
+	if (error == GIT_ITEROVER)
+		error = 0;
+
+out:
+	git_reference_iterator_free(iter);
+	return error;
 }
 
 int git_reference_has_log(

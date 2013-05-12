@@ -501,3 +501,91 @@ void test_checkout_tree__issue_1397(void)
 
 	git_object_free(tree);
 }
+
+void test_checkout_tree__can_write_to_empty_dirs(void)
+{
+	git_checkout_opts opts = GIT_CHECKOUT_OPTS_INIT;
+	git_oid oid;
+	git_object *obj = NULL;
+
+	assert_on_branch(g_repo, "master");
+
+	cl_git_pass(p_mkdir("testrepo/a", 0777));
+
+	/* do first checkout with FORCE because we don't know if testrepo
+	 * base data is clean for a checkout or not
+	 */
+	opts.checkout_strategy = GIT_CHECKOUT_FORCE;
+
+	cl_git_pass(git_reference_name_to_id(&oid, g_repo, "refs/heads/dir"));
+	cl_git_pass(git_object_lookup(&obj, g_repo, &oid, GIT_OBJ_ANY));
+
+	cl_git_pass(git_checkout_tree(g_repo, obj, &opts));
+
+	cl_assert(git_path_isfile("testrepo/a/b.txt"));
+
+	git_object_free(obj);
+}
+
+void test_checkout_tree__fails_when_dir_in_use(void)
+{
+#ifdef GIT_WIN32
+	git_checkout_opts opts = GIT_CHECKOUT_OPTS_INIT;
+	git_oid oid;
+	git_object *obj = NULL;
+
+	opts.checkout_strategy = GIT_CHECKOUT_FORCE;
+
+	cl_git_pass(git_reference_name_to_id(&oid, g_repo, "refs/heads/dir"));
+	cl_git_pass(git_object_lookup(&obj, g_repo, &oid, GIT_OBJ_ANY));
+
+	cl_git_pass(git_checkout_tree(g_repo, obj, &opts));
+
+	cl_assert(git_path_isfile("testrepo/a/b.txt"));
+
+	git_object_free(obj);
+
+	cl_git_pass(p_chdir("testrepo/a"));
+
+	cl_git_pass(git_reference_name_to_id(&oid, g_repo, "refs/heads/master"));
+	cl_git_pass(git_object_lookup(&obj, g_repo, &oid, GIT_OBJ_ANY));
+
+	cl_git_fail(git_checkout_tree(g_repo, obj, &opts));
+
+	cl_git_pass(p_chdir("../.."));
+
+	cl_assert(git_path_is_empty_dir("testrepo/a"));
+#endif
+}
+
+void test_checkout_tree__can_continue_when_dir_in_use(void)
+{
+#ifdef GIT_WIN32
+	git_checkout_opts opts = GIT_CHECKOUT_OPTS_INIT;
+	git_oid oid;
+	git_object *obj = NULL;
+
+	opts.checkout_strategy = GIT_CHECKOUT_FORCE |
+		GIT_CHECKOUT_SKIP_LOCKED_DIRECTORIES;
+
+	cl_git_pass(git_reference_name_to_id(&oid, g_repo, "refs/heads/dir"));
+	cl_git_pass(git_object_lookup(&obj, g_repo, &oid, GIT_OBJ_ANY));
+
+	cl_git_pass(git_checkout_tree(g_repo, obj, &opts));
+
+	cl_assert(git_path_isfile("testrepo/a/b.txt"));
+
+	git_object_free(obj);
+
+	cl_git_pass(p_chdir("testrepo/a"));
+
+	cl_git_pass(git_reference_name_to_id(&oid, g_repo, "refs/heads/master"));
+	cl_git_pass(git_object_lookup(&obj, g_repo, &oid, GIT_OBJ_ANY));
+
+	cl_git_pass(git_checkout_tree(g_repo, obj, &opts));
+
+	cl_git_pass(p_chdir("../.."));
+
+	cl_assert(git_path_is_empty_dir("testrepo/a"));
+#endif
+}

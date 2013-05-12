@@ -24,11 +24,6 @@ void git_tag__free(void *_tag)
 	git__free(tag);
 }
 
-const git_oid *git_tag_id(const git_tag *c)
-{
-	return git_object_id((const git_object *)c);
-}
-
 int git_tag_target(git_object **target, const git_tag *t)
 {
 	assert(t);
@@ -432,7 +427,7 @@ int git_tag_foreach(git_repository *repo, git_tag_foreach_cb cb, void *cb_data)
 	data.cb_data = cb_data;
 	data.repo = repo;
 
-	return git_reference_foreach(repo, GIT_REF_OID, &tags_cb, &data);
+	return git_reference_foreach(repo, &tags_cb, &data);
 }
 
 typedef struct {

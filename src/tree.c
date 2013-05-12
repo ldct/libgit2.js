@@ -149,7 +149,7 @@ static int tree_key_search(
 	/* Initial homing search; find an entry on the tree with
 	 * the same prefix as the filename we're looking for */
 	if (git_vector_bsearch2(&homing, entries, &homing_search_cmp, &ksearch) < 0)
-		return GIT_ENOTFOUND;
+		return GIT_ENOTFOUND; /* just a signal error; not passed back to user */
 
 	/* We found a common prefix. Look forward as long as
 	 * there are entries that share the common prefix */
@@ -230,16 +230,6 @@ void git_tree__free(void *_tree)
 
 	git_vector_free(&tree->entries);
 	git__free(tree);
-}
-
-const git_oid *git_tree_id(const git_tree *t)
-{
-	return git_object_id((const git_object *)t);
-}
-
-git_repository *git_tree_owner(const git_tree *t)
-{
-	return git_object_owner((const git_object *)t);
 }
 
 git_filemode_t git_tree_entry_filemode(const git_tree_entry *entry)

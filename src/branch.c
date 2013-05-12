@@ -124,40 +124,43 @@ on_error:
 	return error;
 }
 
-typedef struct {
-	git_branch_foreach_cb branch_cb;
-	void *callback_payload;
-	unsigned int branch_type;
-} branch_foreach_filter;
-
-static int branch_foreach_cb(const char *branch_name, void *payload)
-{
-	branch_foreach_filter *filter = (branch_foreach_filter *)payload;
-
-	if (filter->branch_type & GIT_BRANCH_LOCAL &&
-		git__prefixcmp(branch_name, GIT_REFS_HEADS_DIR) == 0)
-		return filter->branch_cb(branch_name + strlen(GIT_REFS_HEADS_DIR), GIT_BRANCH_LOCAL, filter->callback_payload);
-
-	if (filter->branch_type & GIT_BRANCH_REMOTE &&
-		git__prefixcmp(branch_name, GIT_REFS_REMOTES_DIR) == 0)
-		return filter->branch_cb(branch_name + strlen(GIT_REFS_REMOTES_DIR), GIT_BRANCH_REMOTE, filter->callback_payload);
-
-	return 0;
-}
-
 int git_branch_foreach(
 	git_repository *repo,
 	unsigned int list_flags,
-	git_branch_foreach_cb branch_cb,
+	git_branch_foreach_cb callback,
 	void *payload)
 {
-	branch_foreach_filter filter;
+	git_reference_iterator *iter;
+	const char *name;
+	int error;
 
-	filter.branch_cb = branch_cb;
-	filter.branch_type = list_flags;
-	filter.callback_payload = payload;
+	if (git_reference_iterator_new(&iter, repo) < 0)
+		return -1;
 
-	return git_reference_foreach(repo, GIT_REF_LISTALL, &branch_foreach_cb, (void *)&filter);
+	while ((error = git_reference_next(&name, iter)) == 0) {
+		if (list_flags & GIT_BRANCH_LOCAL &&
+		    git__prefixcmp(name, GIT_REFS_HEADS_DIR) == 0) {
+			if (callback(name + strlen(GIT_REFS_HEADS_DIR), GIT_BRANCH_LOCAL, payload)) {
+				error = GIT_EUSER;
+				break;
+			}
+		}
+
+		if (list_flags & GIT_BRANCH_REMOTE &&
+		    git__prefixcmp(name, GIT_REFS_REMOTES_DIR) == 0) {
+			if (callback(name + strlen(GIT_REFS_REMOTES_DIR), GIT_BRANCH_REMOTE, payload)) {
+				error = GIT_EUSER;
+				break;
+			}
+		}
+	}
+
+	if (error == GIT_ITEROVER)
+		error = 0;
+
+	git_reference_iterator_free(iter);
+	return error;
+
 }
 
 int git_branch_move(
@@ -185,7 +188,7 @@ int git_branch_move(
 		git_buf_cstr(&old_config_section),
 		git_buf_cstr(&new_config_section))) < 0)
 		goto done;
-	
+
 	if ((error = git_reference_rename(out, branch, git_buf_cstr(&new_reference_name), force)) < 0)
 		goto done;
 
@@ -276,6 +279,8 @@ int git_branch_upstream__name(
 			goto cleanup;
 
 	if (!*remote_name || !*merge_name) {
+		giterr_set(GITERR_REFERENCE,
+			"branch '%s' does not have an upstream", canonical_branch_name);
 		error = GIT_ENOTFOUND;
 		goto cleanup;
 	}
@@ -342,6 +347,9 @@ static int remote_name(git_buf *buf, git_repository *repo, const char *canonical
 				remote_name = remote_list.strings[i];
 			} else {
 				git_remote_free(remote);
+
+				giterr_set(GITERR_REFERENCE,
+					"Reference '%s' is ambiguous", canonical_branch_name);
 				error = GIT_EAMBIGUOUS;
 				goto cleanup;
 			}
@@ -354,6 +362,8 @@ static int remote_name(git_buf *buf, git_repository *repo, const char *canonical
 		git_buf_clear(buf);
 		error = git_buf_puts(buf, remote_name);
 	} else {
+		giterr_set(GITERR_REFERENCE,
+			"Could not determine remote for '%s'", canonical_branch_name);
 		error = GIT_ENOTFOUND;
 	}
 
@@ -490,8 +500,11 @@ int git_branch_set_upstream(git_reference *branch, const char *upstream_name)
 		local = 1;
 	else if (git_branch_lookup(&upstream, repo, upstream_name, GIT_BRANCH_REMOTE) == 0)
 		local = 0;
-	else
+	else {
+		giterr_set(GITERR_REFERENCE,
+			"Cannot set upstream for branch '%s'", shortname);
 		return GIT_ENOTFOUND;
+	}
 
 	/*
 	 * If it's local, the remote is "." and the branch name is
@@ -511,7 +524,8 @@ int git_branch_set_upstream(git_reference *branch, const char *upstream_name)
 		goto on_error;
 
 	if (local) {
-		if (git_buf_puts(&value, git_reference_name(branch)) < 0)
+		git_buf_clear(&value);
+		if (git_buf_puts(&value, git_reference_name(upstream)) < 0)
 			goto on_error;
 	} else {
 		/* Get the remoe-tracking branch's refname in its repo */

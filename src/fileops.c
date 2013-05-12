@@ -444,7 +444,7 @@ static int futils__rmdir_recurs_foreach(void *opaque, git_buf *path)
 
 		if (data->error < 0) {
 			if ((data->flags & GIT_RMDIR_SKIP_NONEMPTY) != 0 &&
-				(errno == ENOTEMPTY || errno == EEXIST))
+				(errno == ENOTEMPTY || errno == EEXIST || errno == EBUSY))
 				data->error = 0;
 			else
 				futils__error_cannot_rmdir(path->ptr, NULL);
@@ -480,7 +480,7 @@ static int futils__rmdir_empty_parent(void *opaque, git_buf *path)
 		if (en == ENOENT || en == ENOTDIR) {
 			giterr_clear();
 			error = 0;
-		} else if (en == ENOTEMPTY || en == EEXIST) {
+		} else if (en == ENOTEMPTY || en == EEXIST || en == EBUSY) {
 			giterr_clear();
 			error = GIT_ITEROVER;
 		} else {
@@ -988,8 +988,10 @@ int git_futils_filestamp_check(
 	if (stamp == NULL)
 		return 1;
 
-	if (p_stat(path, &st) < 0)
+	if (p_stat(path, &st) < 0) {
+		giterr_set(GITERR_OS, "Could not stat '%s'", path);
 		return GIT_ENOTFOUND;
+	}
 
 	if (stamp->mtime == (git_time_t)st.st_mtime &&
 		stamp->size  == (git_off_t)st.st_size   &&

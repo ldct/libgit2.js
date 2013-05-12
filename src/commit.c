@@ -96,7 +96,6 @@ int git_commit_create_from_oids(
 	git_odb *odb;
 
 	assert(oid && repo && tree && parent_count >= 0);
-	assert(git_object_owner((const git_object *)tree) == repo);
 
 	git_oid__writebuf(&commit, "tree ", tree);
 
@@ -149,6 +148,7 @@ int git_commit_create(
 	const git_oid **parent_oids;
 
 	assert(parent_count >= 0);
+	assert(git_object_owner((const git_object *)tree) == repo);
 
 	parent_oids = git__malloc(parent_count * sizeof(git_oid *));
 	GITERR_CHECK_ALLOC(parent_oids);
@@ -292,7 +292,7 @@ int git_commit_nth_gen_ancestor(
 	const git_commit *commit,
 	unsigned int n)
 {
-	git_commit *current, *parent;
+	git_commit *current, *parent = NULL;
 	int error;
 
 	assert(ancestor && commit);

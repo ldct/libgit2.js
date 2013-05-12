@@ -132,14 +132,14 @@ static int reference_matches_remote_head(
 			return 0;
 	}
 
-	if (git_oid_cmp(&head_info->remote_head_oid, &oid) == 0) {
+	if (git_oid__cmp(&head_info->remote_head_oid, &oid) == 0) {
 		/* Determine the local reference name from the remote tracking one */
 		if (git_refspec_transform_l(
-			&head_info->branchname, 
+			&head_info->branchname,
 			head_info->refspec,
 			reference_name) < 0)
 				return -1;
-		
+
 		if (git_buf_len(&head_info->branchname) > 0) {
 			if (git_buf_sets(
 				&head_info->branchname,
@@ -243,7 +243,6 @@ static int update_head_to_remote(git_repository *repo, git_remote *remote)
 	/* Not master. Check all the other refs. */
 	if (git_reference_foreach(
 		repo,
-		GIT_REF_LISTALL,
 		reference_matches_remote_head,
 		&head_info) < 0)
 			goto cleanup;
@@ -355,49 +354,47 @@ static int setup_remotes_and_fetch(
 		const git_clone_options *options)
 {
 	int retcode = GIT_ERROR;
-	git_remote *origin;
+	git_remote *origin = NULL;
 
 	/* Construct an origin remote */
-	if (!create_and_configure_origin(&origin, repo, url, options)) {
-		git_remote_set_update_fetchhead(origin, 0);
+	if ((retcode = create_and_configure_origin(&origin, repo, url, options)) < 0)
+		goto on_error;
 
-		/* Connect and download everything */
-		if (!git_remote_connect(origin, GIT_DIRECTION_FETCH)) {
-			if (!(retcode = git_remote_download(origin, options->fetch_progress_cb,
-						options->fetch_progress_payload))) {
-				/* Create "origin/foo" branches for all remote branches */
-				if (!git_remote_update_tips(origin)) {
-					/* Point HEAD to the requested branch */
-					if (options->checkout_branch) {
-						if (!update_head_to_branch(repo, options))
-							retcode = 0;
-					}
-					/* Point HEAD to the same ref as the remote's head */
-					else if (!update_head_to_remote(repo, origin)) {
-						retcode = 0;
-					}
-				}
-			}
-			git_remote_disconnect(origin);
-		}
-		git_remote_free(origin);
-	}
+	git_remote_set_update_fetchhead(origin, 0);
 
+	/* If the download_tags value has not been specified, then make sure to
+		* download tags as well. It is set here because we want to download tags
+		* on the initial clone, but do not want to persist the value in the
+		* configuration file.
+		*/
+	if (origin->download_tags == GIT_REMOTE_DOWNLOAD_TAGS_AUTO &&
+		((retcode = git_remote_add_fetch(origin, "refs/tags/*:refs/tags/*")) < 0))
+		goto on_error;
+
+	/* Connect and download everything */
+	if ((retcode = git_remote_connect(origin, GIT_DIRECTION_FETCH)) < 0)
+		goto on_error;
+
+	if ((retcode = git_remote_download(origin, options->fetch_progress_cb,
+		options->fetch_progress_payload)) < 0)
+		goto on_error;
+
+	/* Create "origin/foo" branches for all remote branches */
+	if ((retcode = git_remote_update_tips(origin)) < 0)
+		goto on_error;
+
+	/* Point HEAD to the requested branch */
+	if (options->checkout_branch)
+		retcode = update_head_to_branch(repo, options);
+	/* Point HEAD to the same ref as the remote's head */
+	else
+		retcode = update_head_to_remote(repo, origin);
+
+on_error:
+	git_remote_free(origin);
 	return retcode;
 }
 
-
-static bool path_is_okay(const char *path)
-{
-	/* The path must either not exist, or be an empty directory */
-	if (!git_path_exists(path)) return true;
-	if (!git_path_is_empty_dir(path)) {
-		giterr_set(GITERR_INVALID,
-					  "'%s' exists and is not an empty directory", path);
-		return false;
-	}
-	return true;
-}
 
 static bool should_checkout(
 	git_repository *repo,
@@ -425,7 +422,7 @@ static void normalize_options(git_clone_options *dst, const git_clone_options *s
 
 	/* Provide defaults for null pointers */
 	if (!dst->remote_name) dst->remote_name = "origin";
-	if (!dst->remote_autotag) dst->remote_autotag = GIT_REMOTE_DOWNLOAD_TAGS_ALL;
+	if (!dst->remote_autotag) dst->remote_autotag = GIT_REMOTE_DOWNLOAD_TAGS_AUTO;
 }
 
 int git_clone(
@@ -444,7 +441,10 @@ int git_clone(
 	normalize_options(&normOptions, options);
 	GITERR_CHECK_VERSION(&normOptions, GIT_CLONE_OPTIONS_VERSION, "git_clone_options");
 
-	if (!path_is_okay(local_path)) {
+	/* Only clone to a new directory or an empty directory */
+	if (git_path_exists(local_path) && !git_path_is_empty_dir(local_path)) {
+		giterr_set(GITERR_INVALID,
+			"'%s' exists and is not an empty directory", local_path);
 		return GIT_ERROR;
 	}
 

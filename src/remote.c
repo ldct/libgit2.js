@@ -8,6 +8,7 @@
 #include "git2/config.h"
 #include "git2/types.h"
 #include "git2/oid.h"
+#include "git2/net.h"
 
 #include "config.h"
 #include "repository.h"
@@ -62,8 +63,10 @@ static int download_tags_value(git_remote *remote, git_config *cfg)
 	else if (!error && !strcmp(val, "--tags"))
 		remote->download_tags = GIT_REMOTE_DOWNLOAD_TAGS_ALL;
 
-	if (error == GIT_ENOTFOUND)
+	if (error == GIT_ENOTFOUND) {
+		giterr_clear();
 		error = 0;
+	}
 
 	return error;
 }
@@ -209,6 +212,31 @@ static int refspec_cb(const git_config_entry *entry, void *payload)
 	return add_refspec(data->remote, entry->value, data->fetch);
 }
 
+static int get_optional_config(
+	git_config *config, git_buf *buf, git_config_foreach_cb cb, void *payload)
+{
+	int error = 0;
+	const char *key = git_buf_cstr(buf);
+
+	if (git_buf_oom(buf))
+		return -1;
+
+	if (cb != NULL)
+		error = git_config_get_multivar(config, key, NULL, cb, payload);
+	else
+		error = git_config_get_string(payload, config, key);
+
+	if (error == GIT_ENOTFOUND) {
+		giterr_clear();
+		error = 0;
+	}
+
+	if (error < 0)
+		error = -1;
+
+	return error;
+}
+
 int git_remote_load(git_remote **out, git_repository *repo, const char *name)
 {
 	git_remote *remote;
@@ -249,7 +277,7 @@ int git_remote_load(git_remote **out, git_repository *repo, const char *name)
 
 	if ((error = git_config_get_string(&val, config, git_buf_cstr(&buf))) < 0)
 		goto cleanup;
-	
+
 	if (strlen(val) == 0) {
 		giterr_set(GITERR_INVALID, "Malformed remote '%s' - missing URL", name);
 		error = -1;
@@ -260,60 +288,32 @@ int git_remote_load(git_remote **out, git_repository *repo, const char *name)
 	remote->url = git__strdup(val);
 	GITERR_CHECK_ALLOC(remote->url);
 
+	val = NULL;
 	git_buf_clear(&buf);
-	if (git_buf_printf(&buf, "remote.%s.pushurl", name) < 0) {
-		error = -1;
-		goto cleanup;
-	}
+	git_buf_printf(&buf, "remote.%s.pushurl", name);
 
-	error = git_config_get_string(&val, config, git_buf_cstr(&buf));
-	if (error == GIT_ENOTFOUND) {
-		val = NULL;
-		error = 0;
-	}
-
-	if (error < 0) {
-		error = -1;
+	if ((error = get_optional_config(config, &buf, NULL, (void *)&val)) < 0)
 		goto cleanup;
-	}
 
 	if (val) {
 		remote->pushurl = git__strdup(val);
 		GITERR_CHECK_ALLOC(remote->pushurl);
 	}
 
-	git_buf_clear(&buf);
-	if (git_buf_printf(&buf, "remote.%s.fetch", name) < 0) {
-		error = -1;
-		goto cleanup;
-	}
-
 	data.remote = remote;
 	data.fetch = true;
-	error = git_config_get_multivar(config, git_buf_cstr(&buf), NULL, refspec_cb, &data);
-	if (error == GIT_ENOTFOUND)
-		error = 0;
-
-	if (error < 0) {
-		error = -1;
-		goto cleanup;
-	}
-
 	git_buf_clear(&buf);
-	if (git_buf_printf(&buf, "remote.%s.push", name) < 0) {
-		error = -1;
+	git_buf_printf(&buf, "remote.%s.fetch", name);
+
+	if ((error = get_optional_config(config, &buf, refspec_cb, &data)) < 0)
 		goto cleanup;
-	}
 
 	data.fetch = false;
-	error = git_config_get_multivar(config, git_buf_cstr(&buf), NULL, refspec_cb, &data);
-	if (error == GIT_ENOTFOUND)
-		error = 0;
+	git_buf_clear(&buf);
+	git_buf_printf(&buf, "remote.%s.push", name);
 
-	if (error < 0) {
-		error = -1;
+	if ((error = get_optional_config(config, &buf, refspec_cb, &data)) < 0)
 		goto cleanup;
-	}
 
 	if (download_tags_value(remote, config) < 0)
 		goto cleanup;
@@ -335,7 +335,7 @@ static int update_config_refspec(const git_remote *remote, git_config *config, i
 	int push;
 	const char *dir;
 	size_t i;
-	int error = -1;
+	int error = 0;
 
 	push = direction == GIT_DIRECTION_PUSH;
 	dir = push ? "push" : "fetch";
@@ -344,9 +344,8 @@ static int update_config_refspec(const git_remote *remote, git_config *config, i
 		return -1;
 
 	/* Clear out the existing config */
-	do {
+	while (!error)
 		error = git_config_delete_entry(config, git_buf_cstr(&name));
-	} while (!error);
 
 	if (error != GIT_ENOTFOUND)
 		return error;
@@ -357,7 +356,8 @@ static int update_config_refspec(const git_remote *remote, git_config *config, i
 		if (spec->push != push)
 			continue;
 
-		if ((error = git_config_set_multivar(config, git_buf_cstr(&name), "", spec->string)) < 0) {
+		if ((error = git_config_set_multivar(
+				config, git_buf_cstr(&name), "", spec->string)) < 0) {
 			goto cleanup;
 		}
 	}
@@ -632,26 +632,103 @@ int git_remote__get_http_proxy(git_remote *remote, bool use_ssl, char **proxy_ur
 	return 0;
 }
 
+static int store_refs(git_remote_head *head, void *payload)
+{
+	git_vector *refs = (git_vector *)payload;
+
+	return git_vector_insert(refs, head);
+}
+
+static int dwim_refspecs(git_vector *refspecs, git_vector *refs)
+{
+	git_buf buf = GIT_BUF_INIT;
+	git_refspec *spec;
+	size_t i, j, pos;
+	git_remote_head key;
+
+	const char* formatters[] = {
+		GIT_REFS_DIR "%s",
+		GIT_REFS_TAGS_DIR "%s",
+		GIT_REFS_HEADS_DIR "%s",
+		NULL
+	};
+
+	git_vector_foreach(refspecs, i, spec) {
+		if (spec->dwim)
+			continue;
+
+		/* shorthand on the lhs */
+		if (git__prefixcmp(spec->src, GIT_REFS_DIR)) {
+			for (j = 0; formatters[j]; j++) {
+				git_buf_clear(&buf);
+				if (git_buf_printf(&buf, formatters[j], spec->src) < 0)
+					return -1;
+
+				key.name = (char *) git_buf_cstr(&buf);
+				if (!git_vector_search(&pos, refs, &key)) {
+					/* we found something to match the shorthand, set src to that */
+					git__free(spec->src);
+					spec->src = git_buf_detach(&buf);
+				}
+			}
+		}
+
+		if (spec->dst && git__prefixcmp(spec->dst, GIT_REFS_DIR)) {
+			/* if it starts with "remotes" then we just prepend "refs/" */
+			if (!git__prefixcmp(spec->dst, "remotes/")) {
+				git_buf_puts(&buf, GIT_REFS_DIR);
+			} else {
+				git_buf_puts(&buf, GIT_REFS_HEADS_DIR);
+			}
+
+			if (git_buf_puts(&buf, spec->dst) < 0)
+				return -1;
+
+			git__free(spec->dst);
+			spec->dst = git_buf_detach(&buf);
+		}
+
+		spec->dwim = 1;
+	}
+
+	git_buf_free(&buf);
+	return 0;
+}
+
+static int remote_head_cmp(const void *_a, const void *_b)
+{
+	const git_remote_head *a = (git_remote_head *) _a;
+	const git_remote_head *b = (git_remote_head *) _b;
+
+	return git__strcmp_cb(a->name, b->name);
+}
+
 int git_remote_download(
 		git_remote *remote,
 		git_transfer_progress_callback progress_cb,
 		void *progress_payload)
 {
 	int error;
+	git_vector refs;
 
 	assert(remote);
+
+	if (git_vector_init(&refs, 16, remote_head_cmp) < 0)
+		return -1;
+
+	if (git_remote_ls(remote, store_refs, &refs) < 0) {
+		return -1;
+	}
+
+	error = dwim_refspecs(&remote->refspecs, &refs);
+	git_vector_free(&refs);
+	if (error < 0)
+		return -1;
 
 	if ((error = git_fetch_negotiate(remote)) < 0)
 		return error;
 
 	return git_fetch_download_pack(remote, progress_cb, progress_payload);
-}
-
-static int update_tips_callback(git_remote_head *head, void *payload)
-{
-	git_vector *refs = (git_vector *)payload;
-
-	return git_vector_insert(refs, head);
 }
 
 static int remote_head_for_fetchspec_src(git_remote_head **out, git_vector *update_heads, const char *fetchspec_src)
@@ -814,7 +891,7 @@ static int update_tips_for_spec(git_remote *remote, git_refspec *spec, git_vecto
 		if (!git_reference_is_valid_name(head->name))
 			continue;
 
-		if (git_refspec_src_matches(spec, head->name)) {
+		if (git_refspec_src_matches(spec, head->name) && spec->dst) {
 			if (git_refspec_transform_r(&refname, spec, head->name) < 0)
 				goto on_error;
 		} else if (remote->download_tags != GIT_REMOTE_DOWNLOAD_TAGS_NONE) {
@@ -845,7 +922,7 @@ static int update_tips_for_spec(git_remote *remote, git_refspec *spec, git_vecto
 		if (error == GIT_ENOTFOUND)
 			memset(&old, 0, GIT_OID_RAWSZ);
 
-		if (!git_oid_cmp(&old, &head->oid))
+		if (!git_oid__cmp(&old, &head->oid))
 			continue;
 
 		/* In autotag mode, don't overwrite any locally-existing tags */
@@ -880,30 +957,38 @@ on_error:
 
 int git_remote_update_tips(git_remote *remote)
 {
-	git_refspec *spec;
+	git_refspec *spec, tagspec;
 	git_vector refs;
+	int error;
 	size_t i;
+
+
+	if (git_refspec__parse(&tagspec, GIT_REFSPEC_TAGS, true) < 0)
+		return -1;
 
 	if (git_vector_init(&refs, 16, NULL) < 0)
 		return -1;
 
-	if (git_remote_ls(remote, update_tips_callback, &refs) < 0)
-		goto on_error;
+	if ((error = git_remote_ls(remote, store_refs, &refs)) < 0)
+		goto out;
+
+	if (remote->download_tags == GIT_REMOTE_DOWNLOAD_TAGS_ALL) {
+		error = update_tips_for_spec(remote, &tagspec, &refs);
+		goto out;
+	}
 
 	git_vector_foreach(&remote->refspecs, i, spec) {
 		if (spec->push)
 			continue;
 
-		if (update_tips_for_spec(remote, spec, &refs) < 0)
-			goto on_error;
+		if ((error = update_tips_for_spec(remote, spec, &refs)) < 0)
+			goto out;
 	}
 
+out:
+	git_refspec__free(&tagspec);
 	git_vector_free(&refs);
-	return 0;
-
-on_error:
-	git_vector_free(&refs);
-	return -1;
+	return error;
 }
 
 int git_remote_connected(git_remote *remote)
@@ -1166,14 +1251,6 @@ static int update_branch_remote_config_entry(
 		update_config_entries_cb, &data);
 }
 
-static int rename_cb(const char *ref, void *data)
-{
-	if (git__prefixcmp(ref, GIT_REFS_REMOTES_DIR))
-		return 0;
-	
-	return git_vector_insert((git_vector *)data, git__strdup(ref));
-}
-
 static int rename_one_remote_reference(
 	git_repository *repo,
 	const char *reference_name,
@@ -1213,16 +1290,29 @@ static int rename_remote_references(
 	int error = -1;
 	unsigned int i;
 	char *name;
+	const char *refname;
+	git_reference_iterator *iter;
 
 	if (git_vector_init(&refnames, 8, NULL) < 0)
+		return -1;
+
+	if (git_reference_iterator_new(&iter, repo) < 0)
 		goto cleanup;
 
-	if (git_reference_foreach(
-		repo,
-		GIT_REF_LISTALL,
-		rename_cb,
-		&refnames) < 0)
-			goto cleanup;
+	while ((error = git_reference_next(&refname, iter)) == 0) {
+		if (git__prefixcmp(refname, GIT_REFS_REMOTES_DIR))
+			continue;
+
+		if ((error = git_vector_insert(&refnames, git__strdup(refname))) < 0)
+			break;
+
+	}
+
+	git_reference_iterator_free(iter);
+	if (error == GIT_ITEROVER)
+		error = 0;
+	else
+		goto cleanup;
 
 	git_vector_foreach(&refnames, i, name) {
 		if ((error = rename_one_remote_reference(repo, name, old_name, new_name)) < 0)
@@ -1497,4 +1587,29 @@ int git_remote_get_fetch_refspecs(git_strarray *array, git_remote *remote)
 int git_remote_get_push_refspecs(git_strarray *array, git_remote *remote)
 {
 	return copy_refspecs(array, remote, true);
+}
+
+size_t git_remote_refspec_count(git_remote *remote)
+{
+	return remote->refspecs.length;
+}
+
+const git_refspec *git_remote_get_refspec(git_remote *remote, size_t n)
+{
+	return git_vector_get(&remote->refspecs, n);
+}
+
+int git_remote_remove_refspec(git_remote *remote, size_t n)
+{
+	git_refspec *spec;
+
+	assert(remote);
+
+	spec = git_vector_get(&remote->refspecs, n);
+	if (spec) {
+		git_refspec__free(spec);
+		git__free(spec);
+	}
+
+	return git_vector_remove(&remote->refspecs, n);
 }
