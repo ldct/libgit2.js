@@ -3,7 +3,7 @@
 
 int list_refs(git_repository* repo) {
   git_strarray ref_list;
-  git_reference_list(&ref_list, repo, GIT_REF_LISTALL);
+  git_reference_list(&ref_list, repo);
 
   const char *refname;
   git_reference *ref;

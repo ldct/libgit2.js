@@ -4,4 +4,4 @@ mkdir build
 cd build
 cmake ..
 cmake --build .
-~/emscripten/emcc -s LINKABLE=1 -o libgit.js libgit2.so
+~/gits/emscripten/emcc -s LINKABLE=1 -O2 -o libgit.js libgit2.so

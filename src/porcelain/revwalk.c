@@ -22,7 +22,7 @@ int revwalk_from_head(git_repository* repo) {
   git_revwalk_new(&walk, repo);
   git_revwalk_sorting(walk, GIT_SORT_TOPOLOGICAL);
   
-  git_reference_foreach(repo, GIT_REF_LISTALL, ref_callback, walk);
+  git_reference_foreach(repo, ref_callback, walk);
 
   git_revwalk_push_head(walk);
   while ((git_revwalk_next(&w_oid, walk)) == 0) {
