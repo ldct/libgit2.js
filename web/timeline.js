@@ -2,7 +2,8 @@ function id(sha) {
   return "sha" + sha;
 }
 
-function updateGraph(graph) {
+function updateGraph() {
+  var graph = revwalk_from_head("/zit");
   $("#commit_graph_container").empty();
 
   var out = "";
@@ -17,10 +18,8 @@ function updateGraph(graph) {
   }
 
   out += "}";
-
-  $("#inputGraph").val(out);
   try {
-    $("#inputGraph")[0].onkeyup();
+    tryDraw(out);
   } catch(e) {
     console.log("");
   }
