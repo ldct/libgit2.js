@@ -3,12 +3,13 @@
         preRun: [],
         postRun: [function() {      
           general();
-          branch("twig");
+          make_branch("twig");
           checkout("twig");
           commit("twigglet");
           checkout("master");
           commit("hi");
           show_dir(ls());
+          $("#text_editor").val("This is a text editor - click on a filename above to edit the file!\nThe bold entries are directories - click to navigate")
           updateGraph();
         }],
         print: function(text) {

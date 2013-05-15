@@ -14,7 +14,8 @@ function touch(file, content) {
 
 var stage = Module.cwrap("stage", 'number', ['string']);
 
-function commit(message) {
+function commit(message, update) {
+
   var ret = Module.ccall("commit", 'number', ['string'], [message]);
   return ret;
 }
@@ -106,7 +107,7 @@ function revwalk_from_head(s) {
   return ret;
 }
 
-var branch = Module.cwrap("branch", 'int', ['string']);
+var make_branch = Module.cwrap("branch", 'int', ['string']);
 
 function checkout(branch_name) {
   ret = Module.ccall("set_HEAD_to_ref", 'int', ['string'], ["refs/heads/" + branch_name]);

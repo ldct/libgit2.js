@@ -6,6 +6,7 @@
     <title>git</title>
     <link rel="stylesheet" type="text/css" href="style.css" />
     <link rel="stylesheet" type="text/css" href="dagre.css" />
+    <link rel="stylesheet" type="text/css" href="jquery.terminal.css" />
   </head>
   <body>
 
@@ -13,8 +14,9 @@
     <div class="emscripten">
       <progress value="0" max="100" id="progress" hidden=1></progress>  
     </div>
-    <hr>
-    <svg width=400 height=300>
+
+    <div style="width:40%; float:left; margin:10px;">
+    <svg>
       <defs>
         <marker id="arrowhead"
                 viewBox="0 0 10 10"
@@ -29,26 +31,52 @@
         </marker>
       </defs>
     </svg>
-    <hr>
-    <div id="directory_listing"></div>
-    <textarea id="text_editor" rows=10>
-This is a text editor - click on a filename above to edit the file!
-The bold entries are directories - click to navigate
-    </textarea>
-    <span id="save">save</span>
+    </div>
 
+    <div style="overflow:hidden;">
+        <div id="directory_listing"></div>
+        <textarea id="text_editor" rows=10></textarea>
+    </div>
+    <span id="save">save</span>
+    <br /><br />
+    <div id="term_demo"></div>
+
+    <script src="jquery.min.js"></script>
 
     <script src="libgit-pre.js"></script>
     <script src="libgit.js"></script>
     <script>FS.checkStreams = function() {return;};//TODO: file bug report against too many FS.streams</script>
 
-    <script src="jquery.min.js"></script>
     <script src="timeline.js"></script>
     <script src="functions.js"></script>
 
     <script src="d3.v2.min.js"></script>
     <script src="dagre.js"></script>
     <script src="graphing.js"></script>
+
+    <script src="git-terminal.js"></script>
+    <script src="jquery.terminal-0.6.3.min.js"></script>
+    <script>
+    $('#term_demo').terminal(function(command, term) {
+        if (command !== '') {
+            try {
+                var result = git_eval(command);
+                if (result !== undefined) {
+                    term.echo(new String(result));
+                }
+            } catch(e) {
+                term.error(new String(e));
+                throw e;
+            }
+        } else {
+           term.echo('');
+        }
+    }, {
+        greetings: 'libgit2.js - type help for a list of commands',
+        name: 'js_demo',
+        height: 200,
+        prompt: '> '});
+    </script>
 
   </body>
 </html>

@@ -1,7 +1,6 @@
 function tryDraw(digraph) {
-  var result;
 
-  result = dagre.dot.toObjects(digraph);
+  var result = dagre.dot.toObjects(digraph);
   result.edges.forEach(function(e) { if (!e.label) { e.label = ""; } });
 
   result.nodes.forEach(function(node) {
@@ -59,10 +58,13 @@ function draw(nodeData, edgeData) {
   recalcLabels();
 
   // Add zoom behavior to the SVG canvas
-  svg.call(d3.behavior.zoom().on("zoom", function redraw() {
-    svgGroup.attr("transform",
-          "translate(" + d3.event.translate + ")"
-          + " scale(" + d3.event.scale + ")");
+  var tx = 0;
+  var ty = 0;
+  
+  svg.call(d3.behavior.drag().on("drag", function redraw() {
+    tx += d3.event.dx;
+    ty += d3.event.dy;
+    svgGroup.attr("transform", "translate(" + tx + "," + ty +")");
   }));
 
   // Run the actual layout
