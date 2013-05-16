@@ -1,4 +1,4 @@
 rm *~
-cp -avr . ../../appspot-grading/static/git
-rm ../../appspot-grading/static/git/libgit.js
-cp ../build/libgit.js ../../appspot-grading/static/git
+cp -avr . ../../appspot-grading/libgit2-js
+rm ../../appspot-grading/libgit2-js/libgit.js
+cp ../build/libgit.js ../../appspot-grading/libgit2-js
