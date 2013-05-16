@@ -6,9 +6,12 @@ function touch(file, content) {
   return Module.ccall("touch", 'number', ['string', 'string'], [file, content]);
 }
 
-var stage = Module.cwrap("stage", 'number', ['string']);
+//
+function stage(file) {
+  return Module.ccall("stage", 'number', ['string'], [file]);
+}
 
-function commit(message, update) {
+function commit(message) {
   return Module.ccall("commit", 'number', ['string'], [message]);
 }
 
@@ -75,6 +78,8 @@ function show_index(s) {
   Module.ccall("show_index_str", 'number', ['string'], [s]);
   return Module.std_out.slice();
 }
+
+//not callable from command line - but do we really need to be able to do so?
 function revwalk_from_head(s) {
   function hex2a(hex) {
       var str = '';

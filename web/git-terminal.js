@@ -5,7 +5,6 @@ if (typeof String.prototype.startsWith != 'function') {
 }
 
 function git_eval(command) {
-	console.log(command);
 	if (command === "help") {
 		var help = "";
 		help += "ls\n";
@@ -13,6 +12,8 @@ function git_eval(command) {
 		help += "cat <filename>\n";
 		help += "touch <filename> <contents>\n";
 		help += "git show-ref\n";
+		help += "git ls-files\n";
+		help += "git add <file>\n";
 		help += "git commit -m \"<message>\"\n";
 		help += "git checkout <branch name>\n";
 		help += "git branch <branch name>";
@@ -50,6 +51,11 @@ function git_eval(command) {
 		var filename = command.split("cat ")[1];
 		return cat(filename);
 	}
+	if (command.startsWith("git add ")) {
+		var filename = command.split("git add ")[1];
+		stage(filename);
+		return;
+	}
 	if (command.startsWith("git commit -m ")) {
 		var message = command.split("git commit -m ")[1];
 		message = message.slice(1, message.length - 1);
@@ -66,6 +72,10 @@ function git_eval(command) {
 		}
 		out = out.substr(0, out.length - 1);
 		return out;
+	}
+	if (command == "git ls-files") {
+		var index = show_index(".");
+		return index.join("\n");
 	}
 	if (command.startsWith("git checkout ")) {
 		var branch_name = command.split("git checkout ")[1];
