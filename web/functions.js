@@ -104,7 +104,9 @@ function revwalk_from_head(s) {
   return ret;
 }
 
-var make_branch = Module.cwrap("branch", 'int', ['string']);
+function make_branch(branch_name) {
+  return Module.ccall("branch", 'int', ['string'], [branch_name]);
+}
 
 function checkout(branch_name) {
   ret = Module.ccall("set_HEAD_to_ref", 'int', ['string'], ["refs/heads/" + branch_name]);

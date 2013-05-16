@@ -44,8 +44,47 @@
     <script src="jquery.min.js"></script>
 
     <script src="libgit-pre.js"></script>
-    <script src="libgit.js"></script>
-    <script>FS.checkStreams = function() {return;};//TODO: file bug report against too many FS.streams</script>
+    <script>
+    var decompressWorker = new Worker('decompress.js');
+    var decompressCallbacks = [];
+    var decompressions = 0;
+    Module["decompress"] = function(data, callback) {
+      var id = decompressCallbacks.length;
+      decompressCallbacks.push(callback);
+      decompressWorker.postMessage({ data: data, id: id });
+      if (Module['setStatus']) {
+        decompressions++;
+        Module['setStatus']('Decompressing...');
+      }
+    };
+    decompressWorker.onmessage = function(event) {
+      decompressCallbacks[event.data.id](event.data.data);
+      decompressCallbacks[event.data.id] = null;
+      if (Module['setStatus']) {
+        decompressions--;
+        if (decompressions == 0) {
+          Module['setStatus']('');
+          FS.checkStreams = function() {return;};//TODO: file bug report against too many FS.streams
+        }
+      }
+    };
+    var compiledCodeXHR = new XMLHttpRequest();
+    compiledCodeXHR.open('GET', 'libgit.js.compress', true);
+    compiledCodeXHR.responseType = 'arraybuffer';
+    compiledCodeXHR.onload = function() {
+      var arrayBuffer = compiledCodeXHR.response;
+      if (!arrayBuffer) throw('Loading compressed code failed.');
+      var byteArray = new Uint8Array(arrayBuffer);
+      Module.decompress(byteArray, function(decompressed) {
+        var source = Array.prototype.slice.apply(decompressed).map(function(x) { return String.fromCharCode(x) }).join(''); // createObjectURL instead?
+        var scriptTag = document.createElement('script');
+        scriptTag.setAttribute('type', 'text/javascript');
+        scriptTag.innerHTML = source;
+        document.body.appendChild(scriptTag);
+      });
+    };
+    compiledCodeXHR.send(null);
+    </script>
 
     <script src="timeline.js"></script>
     <script src="functions.js"></script>
