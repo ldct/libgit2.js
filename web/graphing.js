@@ -13,8 +13,6 @@ function tryDraw(digraph) {
   });
 
   draw(result.nodes, result.edges);
-
-
 }
 
 var svg = d3.select("svg");

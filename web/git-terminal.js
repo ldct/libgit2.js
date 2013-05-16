@@ -8,12 +8,14 @@ function git_eval(command) {
 	console.log(command);
 	if (command === "help") {
 		var help = "";
-		help += "help\n";
 		help += "ls\n";
+		help += "cd <directory>\n";
+		help += "cat <filename>\n";
+		help += "touch <filename> <contents>\n";
 		help += "git show-ref\n";
 		help += "git commit -m \"<message>\"\n";
-		help += "git checkout <branch>";
-		help += "git branch <branch>";
+		help += "git checkout <branch name>\n";
+		help += "git branch <branch name>";
 		return help;
 	}
 	if (command === "ls") {
@@ -27,7 +29,27 @@ function git_eval(command) {
 		}
 		out = out.substr(0, out.length - 1);
 		return out;
-	} 
+	}
+	if (command.startsWith("cd ")) {
+		var directory = command.split("cd ")[1];
+		cd(directory);
+		show_dir(ls("."));
+		return;
+	}
+	if (command.startsWith("touch ")) {
+		var args = command.split("touch ")[1];
+		args = args.split(" ");
+		var filename = args[0];
+		args.shift();
+		var contents = args.join(" ");
+		touch(filename, contents);
+		show_dir(ls("."));
+		return;
+	}
+	if (command.startsWith("cat ")) {
+		var filename = command.split("cat ")[1];
+		return cat(filename);
+	}
 	if (command.startsWith("git commit -m ")) {
 		var message = command.split("git commit -m ")[1];
 		message = message.slice(1, message.length - 1);

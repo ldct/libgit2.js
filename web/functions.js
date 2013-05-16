@@ -1,23 +1,15 @@
-var general = Module.cwrap("general", 'number', []);
-
 function cd(dir) {
-  var ret = Module.ccall("cd", 'number', ['string'], [dir]);
-  show_dir(ls("."));
-  return ret;
+  return Module.ccall("cd", 'number', ['string'], [dir]);
 }
 
 function touch(file, content) {
-  ret = Module.ccall("touch", 'number', ['string', 'string'], [file, content]);
-  show_dir(ls("."));
-  return ret;
+  return Module.ccall("touch", 'number', ['string', 'string'], [file, content]);
 }
 
 var stage = Module.cwrap("stage", 'number', ['string']);
 
 function commit(message, update) {
-
-  var ret = Module.ccall("commit", 'number', ['string'], [message]);
-  return ret;
+  return Module.ccall("commit", 'number', ['string'], [message]);
 }
 
 function ls(dir) {

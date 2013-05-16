@@ -1,3 +1,13 @@
+String.prototype.format = function () {
+    var o = Array.prototype.slice.call(arguments);
+    return this.replace(/{([^{}]*)}/g,
+        function (match, capture) {
+            var r = o[capture];
+            return (typeof r === 'string' || typeof r === 'number') ? r : match;
+        }
+    );
+};
+
 function id(sha) {
   return "sha" + sha;
 }
@@ -17,9 +27,9 @@ function updateGraph() {
 
   for (var i in commits) {
     var c = commits[i];
-    out += "  " + id(c.sha) + " [label = \"" + c.sha.substr(0,10) + "\"];\n";
+    out += "  {0} [label = \"<div class='node_label' title='{1}\n{2}'>{3}</div>\"];\n".format(id(c.sha), c.sha, c.message, c.sha.substr(0,10));
     for (var j in c.parents) {
-      out += "  " + id(c.parents[j]) + " -> " + id(c.sha) +";\n";
+      out += '  {0} -> {1};\n'.format(id(c.parents[j]), id(c.sha));
     }
   }
 

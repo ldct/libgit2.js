@@ -2,6 +2,14 @@ text {
   font: 300 16px "Helvetica Neue";
 }
 
+.node_label {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+  margin-left: 1em;
+  margin-right: 1em;
+  font: 300 16px "Helvetica Neue";
+}
+
 rect {
   fill: #ff0;
 }

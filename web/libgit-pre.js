@@ -2,7 +2,7 @@
         std_out: [],
         preRun: [],
         postRun: [function() {      
-          general();
+          Module.ccall("general", 'number', [] ,[]);
           make_branch("twig");
           checkout("twig");
           commit("twigglet");
