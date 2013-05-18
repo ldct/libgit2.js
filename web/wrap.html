@@ -16,7 +16,7 @@
     </div>
 
     <div style="width:40%; float:left; margin:10px;">
-    <svg>
+    <svg height="800px" width="100%" style="border:none;">
       <defs>
         <marker id="arrowhead"
                 viewBox="0 0 10 10"
@@ -27,7 +27,6 @@
                 markerHeight="5"
                 orient="auto"
                 style="fill: #333">
-          <path d="M 0 0 L 10 5 L 0 10 z"></path>
         </marker>
       </defs>
     </svg>
@@ -40,6 +39,8 @@
     <span id="save">save</span>
     <br /><br />
     <div id="term_demo"></div>
+
+    <a href="https://github.com/zodiac/libgit2.js"><img style="position: absolute; top: 0; right: 0; border: 0;" src="https://s3.amazonaws.com/github/ribbons/forkme_right_green_007200.png" alt="Fork me on GitHub"></a>
 
     <script type="text/javascript">
 
@@ -68,7 +69,7 @@
       decompressWorker.postMessage({ data: data, id: id });
       if (Module['setStatus']) {
         decompressions++;
-        Module['setStatus']('Decompressing...');
+        Module['setStatus']('Decompressing... (chrome users: lzma decompression uses lots of memory, killing the tab. closed other processes that use too much memory)');
       }
     };
     decompressWorker.onmessage = function(event) {
