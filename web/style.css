@@ -17,18 +17,17 @@
         margin-left: 50px;
       }
 
-      .sha { 
-        font-family: monospace;
-        font-size: 0.8em;
-        color: gray;
-      }
-
       .directory_listing {
         font-family: monospace;
       }
 
       .filename_entry {
         margin: 0.5em;
+      }
+
+      .filename_entry_untracked {
+        margin: 0.5em;
+        color: gray;
       }
 
       .dirname_entry {
