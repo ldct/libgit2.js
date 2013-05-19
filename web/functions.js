@@ -41,7 +41,7 @@ function show_dir(listing) {
   $("#directory_listing").empty();
   for (var i in listing.dirs) {
     var entry = $("<span>", {'text': listing.dirs[i], 'class': "dirname_entry"});
-    entry.click(function() {cd(this.innerText)});
+    entry.click(function() {cd(this.innerText); show_dir(ls("."))});
     $("#directory_listing").append(entry);
   }
   for (var i in listing.files) {
@@ -109,7 +109,7 @@ function make_branch(branch_name) {
 }
 
 function checkout(branch_name) {
-  ret = Module.ccall("set_HEAD_to_ref", 'int', ['string'], ["refs/heads/" + branch_name]);
+  ret = Module.ccall("checkout", 'int', ['string'], ["refs/heads/" + branch_name]);
   return ret;
 }
 

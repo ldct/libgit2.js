@@ -14,9 +14,13 @@ int branch(char* branch_name) {
   return git_branch_create(&out, repo, branch_name, head_commit, 1);
 }
 
-int set_HEAD_to_ref(char* ref_name) {
+int checkout(char* ref_name) {
   git_repository* repo;
   git_repository_open(&repo, ".");
 
-  return git_repository_set_head(repo, ref_name);
+  git_checkout_opts opts = GIT_CHECKOUT_OPTS_INIT;
+  opts.checkout_strategy = GIT_CHECKOUT_FORCE;
+
+  git_repository_set_head(repo, ref_name);
+  return git_checkout_head(repo, &opts);
 }
