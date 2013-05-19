@@ -39,13 +39,21 @@ function ls(dir) {
 
 function show_dir(listing) {
   $("#directory_listing").empty();
+  var index = show_index("/zit");
   for (var i in listing.dirs) {
-    var entry = $("<span>", {'text': listing.dirs[i], 'class': "dirname_entry"});
+    var entry = $("<span>", {
+      'text': listing.dirs[i], 
+      'class': "dirname_entry"
+    });
     entry.click(function() {cd(this.innerText); show_dir(ls("."))});
     $("#directory_listing").append(entry);
   }
   for (var i in listing.files) {
-    var entry = $("<span>", {'text': listing.files[i], 'class': "filename_entry"});
+    var f = listing.files[i];
+    var entry = $("<span>", {
+      'text': f,
+      'class': ((index.indexOf(f) >= 0) ? "filename_entry" : "filename_entry_untracked")
+    });
     entry.click(function() {load_text(this.innerText)});
     $("#directory_listing").append(entry);
   }
@@ -120,3 +128,8 @@ $("#save").click(function() {
     touch(current_file, $("#text_editor").val());
   }
 });
+
+function get_head_name() {
+  Module.ccall("get_head_name", 'string', [], []);
+  return Module.ccall("get_head_name", 'string', [], []);
+}

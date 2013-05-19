@@ -81,22 +81,6 @@ int general() {
   touch("readme", "Zit\n---\ngit for zombieis\n\nWelcome to the Zit project!");
   stage("readme");
   commit("Initial commit\n");
-
-  touch("TODO", "-Make project logo\n-Watch Friends\n");
-  stage("TODO");
-  commit("todo\n");
-
-  touch("hello.c", "printf(\"hi\")");
-  stage("hello.c");
-  commit("commit 3");
-
-  touch("hello.c", "printf(\"hi\")");
-  stage("hello.c");
-  commit("commit 4");
-
-  touch("hello.c", "printf(\"hi\")");
-  stage("hello.c");
-  commit("commit 5");
   
   return 0;
 }

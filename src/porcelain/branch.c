@@ -1,4 +1,5 @@
 #include <git2.h>
+#include <stdio.h>
 
 int branch(char* branch_name) {
   git_reference* out;
@@ -23,4 +24,17 @@ int checkout(char* ref_name) {
 
   git_repository_set_head(repo, ref_name);
   return git_checkout_head(repo, &opts);
+}
+
+char const * get_head_name() {
+  git_repository* repo;
+  git_repository_open(&repo, ".");
+  char const * ret;
+
+  git_reference* HEAD;
+  git_repository_head(&HEAD, repo);
+
+  ret = git_reference_name(HEAD);
+  git_reference_free(HEAD);
+  return ret;
 }
