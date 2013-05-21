@@ -116,9 +116,14 @@ function make_branch(branch_name) {
   return Module.ccall("branch", 'int', ['string'], [branch_name]);
 }
 
-function checkout(branch_name) {
-  ret = Module.ccall("checkout", 'int', ['string'], ["refs/heads/" + branch_name]);
-  return ret;
+function checkout(target) {
+  var checkout_ref = Module.cwrap("checkout_ref", 'int', ['string']);
+  var checkout_sha_prefix = Module.cwrap("checkout_sha_prefix", 'int', ['string']);
+  if (checkout_ref("refs/heads/" + target) == 0) {
+    return 0;
+  } else {
+    return checkout_sha_prefix(target);
+  }
 }
 
 $("#save").click(function() {

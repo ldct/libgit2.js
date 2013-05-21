@@ -1,5 +1,6 @@
 #include <git2.h>
 #include <stdio.h>
+#include <string.h>
 
 int branch(char* branch_name) {
   git_reference* out;
@@ -15,15 +16,32 @@ int branch(char* branch_name) {
   return git_branch_create(&out, repo, branch_name, head_commit, 1);
 }
 
-int checkout(char* ref_name) {
+int checkout_ref(char* ref_name) {
   git_repository* repo;
   git_repository_open(&repo, ".");
 
   git_checkout_opts opts = GIT_CHECKOUT_OPTS_INIT;
   opts.checkout_strategy = GIT_CHECKOUT_FORCE;
 
-  git_repository_set_head(repo, ref_name);
+  if (git_repository_set_head(repo, ref_name) != 0) {
+    return -1;
+  }
   return git_checkout_head(repo, &opts);
+}
+
+int checkout_sha_prefix(char* sha) {
+  git_repository* repo;
+  git_repository_open(&repo, ".");
+
+  git_object* commit;
+  git_oid commit_oid;
+
+  git_checkout_opts opts = GIT_CHECKOUT_OPTS_INIT;
+  opts.checkout_strategy = GIT_CHECKOUT_FORCE;
+
+  git_oid_fromstr(&commit_oid, sha);
+  git_object_lookup_prefix(&commit, repo, &commit_oid, strlen(sha), GIT_OBJ_COMMIT);
+  return git_checkout_tree(repo, commit, &opts);
 }
 
 char const * get_head_name() {
