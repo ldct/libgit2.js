@@ -8,12 +8,8 @@ String.prototype.format = function () {
     );
 };
 
-function id(sha) {
-  return "sha" + sha;
-}
-
-function ref_id(ref) {
-  return ref.replace(/\//g, "__");
+function id(sha_or_ref) {
+  return "__" + sha_or_ref.replace(/\//g, "__");
 }
 
 function updateGraph() {
@@ -21,7 +17,7 @@ function updateGraph() {
 
   var commits = revwalk_from_head("/zit");
   var refs = list_refs("/zit");
-  var HEAD = get_head_name();
+  var HEAD_name = get_head_name();
 
   var out = "";
   out += "digraph {\n";
@@ -36,11 +32,11 @@ function updateGraph() {
 
   for (var i in refs) {
     var r = refs[i];
-    out += "  " + ref_id(r.ref) + " [label = \"" + r.ref + "\"];\n";
-    out += "  " + ref_id(r.ref) + "->" + id(r.sha) + ";\n";
+    out += "  " + id(r.ref) + " [label = \"" + r.ref + "\"];\n";
+    out += "  " + id(r.ref) + "->" + id(r.sha) + ";\n";
   }
 
-  out += "  " + "HEAD" + "->" + ref_id(HEAD) + ";\n";
+  out += "  " + "HEAD" + "->" + id(HEAD_name) + ";\n";
 
   out += "}";
   console.log(out);

@@ -120,9 +120,12 @@ function checkout(target) {
   var checkout_ref = Module.cwrap("checkout_ref", 'int', ['string']);
   var checkout_sha_prefix = Module.cwrap("checkout_sha_prefix", 'int', ['string']);
   if (checkout_ref("refs/heads/" + target) == 0) {
+    updateGraph();
     return 0;
   } else {
-    return checkout_sha_prefix(target);
+    ret = checkout_sha_prefix(target);
+    updateGraph();
+    return ret;
   }
 }
 
@@ -137,4 +140,8 @@ $("#save").click(function() {
 function get_head_name() {
   Module.ccall("get_head_name", 'string', [], []);
   return Module.ccall("get_head_name", 'string', [], []);
+}
+
+function repository_head_detached() {
+  return Module.ccall("repository_head_detached", 'int', [], []);
 }
