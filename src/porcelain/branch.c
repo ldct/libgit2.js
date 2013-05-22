@@ -44,9 +44,8 @@ int checkout_sha_prefix(char* sha) {
 
   git_oid_fromstr(&commit_oid, sha);
 
-  git_repository_set_head_detached(repo, &commit_oid);
-
   git_object_lookup_prefix(&commit, repo, &commit_oid, strlen(sha), GIT_OBJ_COMMIT);
+  git_repository_set_head_detached(repo, git_commit_id(commit));
   return git_checkout_tree(repo, commit, &opts);
 }
 
