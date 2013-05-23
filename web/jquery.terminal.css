@@ -37,7 +37,7 @@
 .terminal {
     font-family: FreeMono, monospace;
     color: #aaa;
-    background-color: #000;
+    background-color: rgba(0,0,0,0);
     font-size: 12px;
     line-height: 14px;
 }

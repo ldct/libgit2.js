@@ -15,7 +15,6 @@
       <progress value="0" max="100" id="progress" hidden=1></progress>  
     </div>
 
-    <div style="width:40%; float:left; margin:10px;">
     <svg height="800px" width="100%" style="border:none;">
       <defs>
         <marker id="arrowhead"
@@ -31,15 +30,19 @@
         </marker>
       </defs>
     </svg>
+
+    <div draggable="true" id="term_drag" class="drag">
+      <div id="term_demo"></div>
+    </div>
+    <div draggable="true" id="explorer_drag" class="drag">
+      <div>Explorer</div>
+      <div id="directory_listing"></div>
+      <textarea id="text_editor" rows=10></textarea>
+      <span id="save">save</span>
     </div>
 
-    <div style="overflow:hidden;">
-        <div id="directory_listing"></div>
-        <textarea id="text_editor" rows=10></textarea>
-    </div>
-    <span id="save">save</span>
-    <br /><br />
-    <div id="term_demo"></div>
+    <script src="jquery.min.js"></script>
+    <script src="drag.js"></script>
 
     <!--<a href="https://github.com/zodiac/libgit2.js"><img style="position: absolute; top: 0; right: 0; border: 0;" src="https://s3.amazonaws.com/github/ribbons/forkme_right_green_007200.png" alt="Fork me on GitHub"></a>-->
 
@@ -57,50 +60,7 @@
 
     </script>
 
-    <script src="jquery.min.js"></script>
-
     <script src="libgit-pre.js"></script>
-    <script>
-    var decompressWorker = new Worker('decompress.js');
-    var decompressCallbacks = [];
-    var decompressions = 0;
-    Module["decompress"] = function(data, callback) {
-      var id = decompressCallbacks.length;
-      decompressCallbacks.push(callback);
-      decompressWorker.postMessage({ data: data, id: id });
-      if (Module['setStatus']) {
-        decompressions++;
-        Module['setStatus']('Decompressing... (chrome users: lzma decompression uses lots of memory, killing the tab. closed other processes that use too much memory)');
-      }
-    };
-    decompressWorker.onmessage = function(event) {
-      decompressCallbacks[event.data.id](event.data.data);
-      decompressCallbacks[event.data.id] = null;
-      if (Module['setStatus']) {
-        decompressions--;
-        if (decompressions == 0) {
-          Module['setStatus']('');
-          FS.checkStreams = function() {return;};//TODO: file bug report against too many FS.streams
-        }
-      }
-    };
-    var compiledCodeXHR = new XMLHttpRequest();
-    compiledCodeXHR.open('GET', 'libgit.js.compress', true);
-    compiledCodeXHR.responseType = 'arraybuffer';
-    compiledCodeXHR.onload = function() {
-      var arrayBuffer = compiledCodeXHR.response;
-      if (!arrayBuffer) throw('Loading compressed code failed.');
-      var byteArray = new Uint8Array(arrayBuffer);
-      Module.decompress(byteArray, function(decompressed) {
-        var source = Array.prototype.slice.apply(decompressed).map(function(x) { return String.fromCharCode(x) }).join(''); // createObjectURL instead?
-        var scriptTag = document.createElement('script');
-        scriptTag.setAttribute('type', 'text/javascript');
-        scriptTag.innerHTML = source;
-        document.body.appendChild(scriptTag);
-      });
-    };
-    compiledCodeXHR.send(null);
-    </script>
 
     <script src="timeline.js"></script>
     <script src="functions.js"></script>

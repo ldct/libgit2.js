@@ -1,54 +1,67 @@
-      .emscripten { padding-right: 0; margin-left: auto; margin-right: auto; display: block; }
-      textarea.emscripten { font-family: monospace; width: 80%; }
-      div.emscripten { text-align: center; }
+.emscripten { padding-right: 0; margin-left: auto; margin-right: auto; display: block; }
+div.emscripten { text-align: center; }
 
-      #graph {
-        position: absolute;
-      }
+#graph {
+  position: absolute;
+}
 
-      #commit_graph_container {
-        left: 120px;
-        white-space: nowrap; /*pre*/
-      }
+#commit_graph_container {
+  left: 120px;
+  white-space: nowrap; /*pre*/
+}
 
-      .log {
-        /*border: 1px solid blue;*/
-        height: 25px;
-        margin-left: 50px;
-      }
+.log {
+  /*border: 1px solid blue;*/
+  height: 25px;
+  margin-left: 50px;
+}
 
-      .directory_listing {
-        font-family: monospace;
-      }
+.directory_listing {
+  font-family: monospace;
+}
 
-      .filename_entry {
-        margin: 0.5em;
-      }
+.filename_entry {
+  margin: 0.5em;
+}
 
-      .filename_entry_untracked {
-        margin: 0.5em;
-        color: gray;
-      }
+.filename_entry_untracked {
+  margin: 0.5em;
+  color: gray;
+}
 
-      .dirname_entry {
-        margin: 0.5em;
-        font-weight: bold;
-      }
+.dirname_entry {
+  margin: 0.5em;
+  font-weight: bold;
+}
 
-      .filename_entry:hover {
-        cursor: pointer;
-      }
+.filename_entry:hover {
+  cursor: pointer;
+}
 
-      .dirname_entry:hover {
-        cursor: pointer;
-      }
+.dirname_entry:hover {
+  cursor: pointer;
+}
 
-      #text_editor {
-        width: 100%; 
-        margin-top: 0.5em;
-        border-color: gray;
-      }
+#text_editor {
+  width: 100%; 
+  margin-top: 0.5em;
+  border-color: gray;
+}
 
-      #save:hover {
-        cursor: pointer;
-      }
+#save:hover {
+  cursor: pointer;
+}
+
+.drag { 
+    position: absolute;
+    left: 0px;
+    top: 0px;
+    width: 600px; 
+    background: rgba(255,255,255,0.66); 
+    border: 2px  solid rgba(0,0,0,0.5); 
+    border-radius: 4px; padding: 8px;
+}
+
+#term_drag {
+  background: rgba(0,0,0,0.9);
+}
