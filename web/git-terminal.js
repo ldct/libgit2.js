@@ -7,6 +7,7 @@ if (typeof String.prototype.startsWith != 'function') {
 function git_eval(command) {
 	if (command === "help") {
 		var help = "";
+		help += "explorer\n";
 		help += "ls\n";
 		help += "cd <directory>\n";
 		help += "cat <filename>\n";
@@ -18,6 +19,10 @@ function git_eval(command) {
 		help += "git checkout <branch name>\n";
 		help += "git branch <branch name>";
 		return help;
+	}
+	if (command === "explorer") {
+		$("#explorer_drag").show();
+		return;
 	}
 	if (command === "ls") {
 		var out = "";

@@ -9,8 +9,9 @@ var Module = {
     checkout("master");
     commit("hi");
     show_dir(ls());
-    $("#text_editor").val("This is a text editor - click on a filename above to edit the file!\nThe bold entries are directories - click to navigate")
     updateGraph();
+    $("#terminal_drag").show();
+    
   }],
   print: function(text) {
     Module.std_out.push(text);
@@ -52,7 +53,7 @@ Module["decompress"] = function(data, callback) {
   decompressWorker.postMessage({ data: data, id: id });
   if (Module['setStatus']) {
     decompressions++;
-    Module['setStatus']('Decompressing... (chrome users: lzma decompression uses lots of memory, killing the tab. closed other processes that use too much memory)');
+    Module['setStatus']('Decompressing...');
   }
 };
 decompressWorker.onmessage = function(event) {

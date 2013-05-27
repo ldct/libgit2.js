@@ -31,17 +31,26 @@
       </defs>
     </svg>
 
-    <div draggable="true" id="term_drag" class="drag">
+    <div draggable="true" id="terminal_drag" class="drag">
       <div id="term_demo"></div>
     </div>
     <div draggable="true" id="explorer_drag" class="drag">
-      <div>Explorer</div>
+      <div><span>Explorer</span><span id="close" class="clickable" style="float:right; font-family:monospace;">x</span></div>
       <div id="directory_listing"></div>
       <textarea id="text_editor" rows=10></textarea>
-      <span id="save">save</span>
+      <span class="clickable" id="save">save</span>
     </div>
 
     <script src="jquery.min.js"></script>
+    <script>
+      $("#close").click(function() {
+        $("#explorer_drag").hide();
+      });
+      $("#explorer_drag").hide();
+      $("#terminal_drag").hide();
+    </script>
+
+
     <script src="drag.js"></script>
 
     <!--<a href="https://github.com/zodiac/libgit2.js"><img style="position: absolute; top: 0; right: 0; border: 0;" src="https://s3.amazonaws.com/github/ribbons/forkme_right_green_007200.png" alt="Fork me on GitHub"></a>-->

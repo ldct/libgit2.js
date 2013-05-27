@@ -35,5 +35,5 @@ function make_draggable(target) {
     document.body.addEventListener('drop',make_drop(target),false);
 }
 
-make_draggable("term_drag");
+make_draggable("terminal_drag");
 make_draggable("explorer_drag");

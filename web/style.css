@@ -48,7 +48,7 @@ div.emscripten { text-align: center; }
   border-color: gray;
 }
 
-#save:hover {
+.clickable:hover {
   cursor: pointer;
 }
 
@@ -57,11 +57,20 @@ div.emscripten { text-align: center; }
     left: 0px;
     top: 0px;
     width: 600px; 
-    background: rgba(255,255,255,0.66); 
+    background: rgba(255,255,255,0.8); 
     border: 2px  solid rgba(0,0,0,0.5); 
     border-radius: 4px; padding: 8px;
 }
 
-#term_drag {
+#terminal_drag {
   background: rgba(0,0,0,0.9);
+}
+
+#explorer_drag {
+  background: rgba(255,255,255,0.8);
+}
+
+#text_editor {
+  background: transparent;
+  border: none;
 }
