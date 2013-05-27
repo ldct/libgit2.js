@@ -1,7 +1,7 @@
 var drag_target = null;
 
 function drag_start(event) {
-    console.log("dragstart fired with ", this.id);
+    //console.log("dragstart fired with", this.id);
     drag_target = this.id;
     var style = window.getComputedStyle(event.target, null);
     event.dataTransfer.setData("text/plain",

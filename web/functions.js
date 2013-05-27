@@ -123,7 +123,7 @@ function checkout(target) {
     updateGraph();
     return 0;
   } else {
-    ret = checkout_sha_prefix(target);
+    ret = checkout_sha_predfix(target);
     updateGraph();
     return ret;
   }
@@ -144,4 +144,28 @@ function get_head_name() {
 
 function repository_head_detached() {
   return Module.ccall("repository_head_detached", 'int', [], []);
+}
+
+function diff_head_workdir() {
+  Module.std_out = [];
+  Module.ccall("diff_head_workdir_str", 'int', ['string'], ['/zit']);
+  return Module.std_out.join('\n');
+}
+
+function diff_head_index() {
+  Module.std_out = [];
+  Module.ccall("diff_head_index_str", 'int', ['string'], ['/zit']);
+  return Module.std_out.join('\n');
+}
+
+function diff_index_workdir() {
+  Module.std_out = [];
+  Module.ccall("diff_index_workdir_str", 'int', ['string'], ['/zit']);
+  return Module.std_out.join('\n');
+}
+
+function diff_all() {
+  console.log("head-index:", diff_head_index());
+  console.log("head-workdir:", diff_head_workdir());
+  console.log("index-workdir:", diff_index_workdir());
 }
