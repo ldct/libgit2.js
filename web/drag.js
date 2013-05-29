@@ -37,3 +37,4 @@ function make_draggable(target) {
 
 make_draggable("terminal_drag");
 make_draggable("explorer_drag");
+make_draggable("textbook_drag");

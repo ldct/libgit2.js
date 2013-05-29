@@ -34,6 +34,57 @@
     <div draggable="true" id="terminal_drag" class="drag">
       <div id="term_demo"></div>
     </div>
+
+    <style>
+    code {
+      border-radius: 3px;
+      background-color: #fff;
+      border: solid 1px #efeee6;
+      color: #f14e32;
+      font-family: Courier,monospace;
+      line-height: 18px;
+    }
+    </style>
+
+    <div draggable="true" id="textbook_drag" class="drag" style="height: 20em; overflow: scroll">
+      <h1> 9.3 Git Internals - Git References</h1>
+      <h2> Git References </h2>
+ <p>You can run something like <code>git log 1a410e</code> to look through your whole history, but you still have to remember that <code>1a410e</code> is the last commit in order to walk that history to find all those objects. You need a file in which you can store the SHA-1 value under a simple name so you can use that pointer rather than the raw SHA-1 value.</p>
+
+ <p>In Git, these are called &quot;references&quot; or &quot;refs&quot;; you can find the files that contain the SHA-1 values in the <code>.git/refs</code> directory. In the current project, this directory contains no files, but it does contain a simple structure:</p>
+
+ <pre><code>$ ls .git/refs&#x000A;. .. heads tags&#x000A;</code></pre>
+
+ <p>To create a new reference that will help you remember where your latest commit is, you can technically do something as simple as this:</p>
+
+ <pre><code>$ echo &quot;1a410efbd13591db07496601ebc7a059dd55cfe9&quot; &gt; .git/refs/heads/master&#x000A;</code></pre>
+
+ <p>Now, you can use the head reference you just created instead of the SHA-1 value in your Git commands:</p>
+
+ <pre><code>$ git log --pretty=oneline  master&#x000A;1a410efbd13591db07496601ebc7a059dd55cfe9 third commit&#x000A;cac0cab538b970a37ea1e769cbbde608743bc96d second commit&#x000A;fdf4fc3344e67ab068f836878b6c4951e3b15f3d first commit&#x000A;</code></pre>
+
+ <p>You aren’t encouraged to directly edit the reference files. Git provides a safer command to do this if you want to update a reference called <code>update-ref</code>:</p>
+
+ <pre><code>$ git update-ref refs/heads/master 1a410efbd13591db07496601ebc7a059dd55cfe9&#x000A;</code></pre>
+
+ <p>That’s basically what a branch in Git is: a simple pointer or reference to the head of a line of work. To create a branch back at the second commit, you can do this:</p>
+
+ <pre><code>$ git update-ref refs/heads/test cac0ca&#x000A;</code></pre>
+
+ <p>Your branch will contain only work from that commit down:</p>
+
+ <pre><code>$ git log --pretty=oneline test&#x000A;cac0cab538b970a37ea1e769cbbde608743bc96d second commit&#x000A;fdf4fc3344e67ab068f836878b6c4951e3b15f3d first commit&#x000A;</code></pre>
+
+ <p>Now, your Git database conceptually looks something like Figure 9-4.</p>
+
+ <p><center><img src="/figures/18333fig0904-tn.png"></center><br/>
+ Figure 9-4. Git directory objects with branch head references included.</p>
+
+ <p>When you run commands like <code>git branch (branchname)</code>, Git basically runs that <code>update-ref</code> command to add the SHA-1 of the last commit of the branch you’re on into whatever new reference you want to create.</p>
+    </div>
+
+
+
     <div draggable="true" id="explorer_drag" class="drag">
       <div><span>Explorer</span><span id="close" class="clickable" style="float:right; font-family:monospace;">x</span></div>
       <div id="directory_listing"></div>
@@ -53,7 +104,7 @@
 
     <script src="drag.js"></script>
 
-    <!--<a href="https://github.com/zodiac/libgit2.js"><img style="position: absolute; top: 0; right: 0; border: 0;" src="https://s3.amazonaws.com/github/ribbons/forkme_right_green_007200.png" alt="Fork me on GitHub"></a>-->
+    <!--<a href="https://github.com/zodiac/libgit2.js"><img style="position: absolute; top: 0; right: 0; border: 0;" src="https://s3.amazonaws.com/github/ribbons/forkme_right_green_007200.png" alt="Fork me on GitHub"></a>
 
     <script type="text/javascript">
 
@@ -68,7 +119,7 @@
       })();
 
     </script>
-
+-->
     <script src="libgit-pre.js"></script>
 
     <script src="timeline.js"></script>

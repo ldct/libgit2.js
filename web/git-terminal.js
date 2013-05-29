@@ -8,10 +8,11 @@ function git_eval(command) {
 	if (command === "help") {
 		var help = "";
 		help += "explorer\n";
-		help += "ls\n";
+		help += "ls [<directory>]\n";
 		help += "cd <directory>\n";
 		help += "cat <filename>\n";
 		help += "touch <filename> <contents>\n";
+		help += "git log [<committish>]\n";
 		help += "git show-ref\n";
 		help += "git ls-files\n";
 		help += "git add <file>\n";
@@ -24,9 +25,10 @@ function git_eval(command) {
 		$("#explorer_drag").show();
 		return;
 	}
-	if (command === "ls") {
+	if (command.startsWith("ls ") || command === "ls") {
+		var directory = (command === "ls") ? "." : command.split("ls ")[1];
 		var out = "";
-		var l = ls(".");
+		var l = ls(directory);
 		for (var i in l.dirs) {
 			out += l.dirs[i] + " ";
 		}
@@ -52,6 +54,17 @@ function git_eval(command) {
 		show_dir(ls("."));
 		return;
 	}
+	if (command === "git log") {
+		var res = revwalk_all();
+		var out = "";
+		for (var i = 0; i < res.length; i++) {
+			out += "commit " + res[i].sha;
+			out += "\n";
+			out += "\t" + res[i].message.replace(/\n/g, "\n\t");
+			if (i + 1 != res.length) {out += "\n";}
+		}
+		return out;
+	}
 	if (command.startsWith("cat ")) {
 		var filename = command.split("cat ")[1];
 		return cat(filename);
@@ -64,7 +77,7 @@ function git_eval(command) {
 	if (command.startsWith("git commit -m ")) {
 		var message = command.split("git commit -m ")[1];
 		message = message.slice(1, message.length - 1);
-		commit(message);
+		commit(message.replace(/\\n/g, '\n'));
 		updateGraph();
 		return;
 	}

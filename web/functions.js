@@ -6,7 +6,6 @@ function touch(file, content) {
   return Module.ccall("touch", 'number', ['string', 'string'], [file, content]);
 }
 
-//
 function stage(file) {
   return Module.ccall("stage", 'number', ['string'], [file]);
 }
@@ -59,9 +58,9 @@ function show_dir(listing) {
   }
 
 }
-function list_refs(s) {
+function list_refs() {
   Module.std_out = [];
-  Module.ccall("list_refs_str", 'number', ['string'], [s]);
+  Module.ccall("list_refs_str", 'number', ['string'], ["/zit"]);
   var ret = [];
   for (i in Module.std_out) {
     pair = Module.std_out[i].split(" ");
@@ -87,19 +86,15 @@ function show_index(s) {
   return Module.std_out.slice();
 }
 
-//not callable from command line - but do we really need to be able to do so?
-function revwalk_from_head(s) {
+function parse_revwalk_output(std_out) {  var ret = [];
   function hex2a(hex) {
       var str = '';
       for (var i = 0; i < hex.length; i += 2)
           str += String.fromCharCode(parseInt(hex.substr(i, 2), 16));
       return str;
   }
-  Module.std_out = [];
-  Module.ccall("revwalk_from_head_str", 'number', ['string'], [s]);
-  var ret = [];
-  for (var i in Module.std_out) {
-    var commit = Module.std_out[i].split(" ");
+  for (var i in std_out) {
+    var commit = std_out[i].split(" ");
     var sha = commit.shift();
     var p_count = commit.shift();
     var parents = [];
@@ -110,6 +105,18 @@ function revwalk_from_head(s) {
     ret.push({sha: sha, parents: parents, message: hex2a(message)});
   }
   return ret;
+}
+//not callable from command line
+function revwalk_all() {
+  Module.std_out = [];
+  Module.ccall("revwalk_all", 'number', ['string'], ["/zit"]);
+  return parse_revwalk_output(Module.std_out);
+}
+
+function revwalk_from_sha(sha) {
+  Module.std_out = [];
+  Module.ccall("revwalk_from_sha", 'number', ['string', 'string'], ["/zit", sha]);
+  return parse_revwalk_output(Module.std_out);
 }
 
 function make_branch(branch_name) {

@@ -15,8 +15,8 @@ function id(sha_or_ref) {
 function updateGraph() {
   $("#commit_graph_container").empty();
 
-  var commits = revwalk_from_head("/zit");
-  var refs = list_refs("/zit");
+  var commits = revwalk_all();
+  var refs = list_refs();
   var HEAD_name = get_head_name();
 
   var out = "";
@@ -39,7 +39,6 @@ function updateGraph() {
   out += "  " + "HEAD" + "->" + id(HEAD_name) + ";\n";
 
   out += "}";
-  console.log(out);
   try {
     tryDraw(out);
   } catch(e) {

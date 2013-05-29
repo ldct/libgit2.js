@@ -1,3 +1,9 @@
+if (typeof String.prototype.startsWith != 'function') {
+  String.prototype.startsWith = function (str){
+    return this.slice(0, str.length) == str;
+  };
+}
+
 var Module = {
   std_out: [],
   preRun: [],
@@ -10,11 +16,14 @@ var Module = {
     commit("hi");
     show_dir(ls());
     updateGraph();
-    $("#terminal_drag").show();
-    
+    $("#terminal_drag").show();    
   }],
   print: function(text) {
-    Module.std_out.push(text);
+    if (text.startsWith("STDERR")) {
+      console.log(text);
+    } else {
+      Module.std_out.push(text);
+    }
   },
   printErr: function(text) {
     console.log("error: ", text);

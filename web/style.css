@@ -64,6 +64,12 @@ div.emscripten { text-align: center; }
 
 #terminal_drag {
   background: rgba(0,0,0,0.9);
+  top: 20em;
+}
+
+#textbook_drag {
+  left: 10em;
+  width: 300px;
 }
 
 #explorer_drag {

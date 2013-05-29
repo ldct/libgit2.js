@@ -80,7 +80,7 @@ int general() {
 
   touch("readme", "Zit\n---\ngit for zombieis\n\nWelcome to the Zit project!");
   stage("readme");
-  commit("Initial commit\n");
+  commit("Initial commit");
   
   return 0;
 }
