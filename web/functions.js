@@ -38,7 +38,7 @@ function ls(dir) {
 
 function show_dir(listing) {
   $("#directory_listing").empty();
-  var index = show_index("/zit");
+  var index = show_index("/hello-world-app");
   for (var i in listing.dirs) {
     var entry = $("<span>", {
       'text': listing.dirs[i], 
@@ -60,7 +60,7 @@ function show_dir(listing) {
 }
 function list_refs() {
   Module.std_out = [];
-  Module.ccall("list_refs_str", 'number', ['string'], ["/zit"]);
+  Module.ccall("list_refs_str", 'number', ['string'], ["/hello-world-app"]);
   var ret = [];
   for (i in Module.std_out) {
     pair = Module.std_out[i].split(" ");
@@ -109,13 +109,13 @@ function parse_revwalk_output(std_out) {  var ret = [];
 //not callable from command line
 function revwalk_all() {
   Module.std_out = [];
-  Module.ccall("revwalk_all", 'number', ['string'], ["/zit"]);
+  Module.ccall("revwalk_all", 'number', ['string'], ["/hello-world-app"]);
   return parse_revwalk_output(Module.std_out);
 }
 
 function revwalk_from_sha(sha) {
   Module.std_out = [];
-  Module.ccall("revwalk_from_sha", 'number', ['string', 'string'], ["/zit", sha]);
+  Module.ccall("revwalk_from_sha", 'number', ['string', 'string'], ["/hello-world-app", sha]);
   return parse_revwalk_output(Module.std_out);
 }
 
@@ -130,7 +130,7 @@ function checkout(target) {
     updateGraph();
     return 0;
   } else {
-    ret = checkout_sha_predfix(target);
+    ret = checkout_sha_prefix(target);
     updateGraph();
     return ret;
   }
@@ -155,19 +155,19 @@ function repository_head_detached() {
 
 function diff_head_workdir() {
   Module.std_out = [];
-  Module.ccall("diff_head_workdir_str", 'int', ['string'], ['/zit']);
+  Module.ccall("diff_head_workdir_str", 'int', ['string'], ['/hello-world-app']);
   return Module.std_out.join('\n');
 }
 
 function diff_head_index() {
   Module.std_out = [];
-  Module.ccall("diff_head_index_str", 'int', ['string'], ['/zit']);
+  Module.ccall("diff_head_index_str", 'int', ['string'], ['/hello-world-app']);
   return Module.std_out.join('\n');
 }
 
 function diff_index_workdir() {
   Module.std_out = [];
-  Module.ccall("diff_index_workdir_str", 'int', ['string'], ['/zit']);
+  Module.ccall("diff_index_workdir_str", 'int', ['string'], ['/hello-world-app']);
   return Module.std_out.join('\n');
 }
 

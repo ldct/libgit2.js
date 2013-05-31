@@ -68,8 +68,9 @@ div.emscripten { text-align: center; }
 }
 
 #textbook_drag {
-  left: 10em;
-  width: 300px;
+  top: 2em;
+  left: 500px;
+  width: 600px;
 }
 
 #explorer_drag {

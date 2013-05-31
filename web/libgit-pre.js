@@ -9,11 +9,6 @@ var Module = {
   preRun: [],
   postRun: [function() {      
     Module.ccall("general", 'number', [] ,[]);
-    make_branch("twig");
-    checkout("twig");
-    commit("twigglet");
-    checkout("master");
-    commit("hi");
     show_dir(ls());
     updateGraph();
     $("#terminal_drag").show();    

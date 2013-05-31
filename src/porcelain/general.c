@@ -75,11 +75,11 @@ int commit(char* message) {
 
 int general() {
   git_repository* repo;
-  git_repository_init(&repo, "zit", 0);
-  cd("zit");
+  git_repository_init(&repo, "hello-world-app", 0);
+  cd("hello-world-app");
 
-  touch("readme", "Zit\n---\ngit for zombieis\n\nWelcome to the Zit project!");
-  stage("readme");
+  touch("hello.py", "print 'hello world!'");
+  stage("hello.py");
   commit("Initial commit");
   
   return 0;
