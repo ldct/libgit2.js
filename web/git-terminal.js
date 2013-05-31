@@ -11,7 +11,9 @@ function git_eval(command) {
 		help += "ls [<directory>]\n";
 		help += "cd <directory>\n";
 		help += "cat <filename>\n";
-		help += "touch <filename> <contents>\n";
+		help += "echo \"<ontent>\"\n";
+		help += "echo \"<content>\" > <filename>\n";
+		help += "touch <filename>\n";
 		help += "git log [<committish>]\n";
 		help += "git show-ref\n";
 		help += "git ls-files\n";
@@ -21,6 +23,7 @@ function git_eval(command) {
 		help += "git branch <branch name>";
 		return help;
 	}
+
 	if (command === "explorer") {
 		$("#explorer_drag").show();
 		return;
@@ -42,6 +45,23 @@ function git_eval(command) {
 		var directory = command.split("cd ")[1];
 		cd(directory);
 		show_dir(ls("."));
+		return;
+	}
+	if (command.startsWith("echo ")) {
+		function stripString(s) {
+			console.log("stripping", s)
+			if (s[0] == "\"" && s[s.length - 1] == "\"") {
+				return s.substr(1, s.length - 2);
+			} else {
+				return s;
+			}
+		}
+		var rest = command.substr(5);
+		var args = rest.split(" > ");
+		if (args.length < 2) {
+			return stripString(rest);
+		}
+		touch(args[1], stripString(args[0]));
 		return;
 	}
 	if (command.startsWith("touch ")) {

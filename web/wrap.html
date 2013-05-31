@@ -64,7 +64,7 @@
 
       <p> Let's run through some sample interactions with the repository. Go ahead and edit a file
 
-      <pre><div class="code"> &gt; touch hello.py print('hello world!')</div><div class="code"> &gt; cat hello.py</div><div class="output"> print('hello world!')</pre>
+      <pre><div class="code"> &gt; echo "print('hello world!')" > hello.py</div><div class="code"> &gt; cat hello.py</div><div class="output"> print('hello world!')</pre>
 
       <p> Now stage and commit the file
 
@@ -72,13 +72,13 @@
 
       <p> Notice that the commit graph has now changed to reflect the new commit. You can also check that the old history is still stored.
 
-      <div class="code"> &gt; git checkout 82a43b8d25 </div><div class="output"> checked out 82a43b8d25 </div><div class="code"> &gt; cat hello.py</div><div class="output">print('hello world!')</div>
+      <div class="code"> &gt; git checkout 82a43b8d25 </div><div class="output"> checked out 82a43b8d25 </div><div class="code"> &gt; cat hello.py</div><div class="output">print 'hello world!'</div>
 
       <p> Notice also that the HEAD node now points somewhere else. This is also reflected in the repository.
 
       <pre><div class="code"> &gt; cat .git/HEAD </div><div class="output"> 82a43b8d2583b20b53f035c0735f7f35e7c05fef </div> </pre>
 
-      <p> Because libgit does not implement the git porcelain commands, this port only contains a fraction of the full functionality of a full git client. However, writing porcelain commands is very easy with libgit2; take a look at kkklinkz
+      <p> Because libgit only implements the core commands and not the porcelain layer, this port only contains a fraction of the full functionality of a full git client. However, writing porcelain commands is very easy with libgit2; take a look at <a href="https://github.com/zodiac/libgit2.js/tree/development/src/porcelain"> how little I had to write</a> for this.
 
 
 
